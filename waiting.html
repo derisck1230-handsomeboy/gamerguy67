@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>等待室 - 大航海期貨所</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Noto+Serif+TC:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --wood-dark: #2c1810; --wood-mid: #4a2c1a; --parchment: #f3e5c5; --parchment-dark: #e6d4a8;
+      --gold: #c9a227; --gold-bright: #e8c547; --navy: #0b1c2c; --navy-light: #16324a; --ink: #1a120b;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      min-height: 100vh; font-family: 'Noto Serif TC', serif; color: var(--ink);
+      background: linear-gradient(160deg, #0b1c2c 0%, #1a3a4a 100%);
+      display: flex; align-items: center; justify-content: center; padding: 20px;
+    }
+    .frame {
+      width: 100%; max-width: 480px;
+      background: linear-gradient(145deg, var(--parchment), var(--parchment-dark));
+      border: 3px solid var(--gold); border-radius: 8px;
+      box-shadow: 0 0 0 6px var(--wood-dark), 0 0 0 9px var(--gold), 0 20px 40px rgba(0,0,0,0.5);
+      padding: 32px 28px; text-align: center;
+    }
+    h1 { font-family: 'Cinzel', serif; font-size: 1.5rem; color: var(--wood-dark); margin-bottom: 8px; }
+    .room-code {
+      font-family: 'Cinzel', serif; font-size: 1.8rem; color: var(--navy);
+      background: rgba(255,255,255,0.5); border: 2px dashed var(--gold);
+      padding: 10px 20px; margin: 16px 0; letter-spacing: 0.15em;
+    }
+    .players { margin: 24px 0; text-align: left; }
+    .player-slot {
+      display: flex; align-items: center; gap: 12px;
+      background: rgba(255,255,255,0.35); border: 1px solid var(--wood-mid);
+      padding: 12px 14px; margin-bottom: 8px; border-radius: 8px;
+    }
+    .player-slot.empty { opacity: 0.5; border-style: dashed; }
+    .avatar {
+      width: 40px; height: 40px; border-radius: 50%;
+      background: var(--navy); color: var(--gold); display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem; border: 2px solid var(--gold);
+    }
+    .btn {
+      width: 100%; padding: 14px; font-family: 'Cinzel', serif; font-weight: 700; font-size: 1.05rem;
+      border: none; border-radius: 12px; cursor: pointer; margin-top: 10px;
+    }
+    .btn-start {
+      background: linear-gradient(180deg, var(--gold-bright), var(--gold));
+      color: var(--wood-dark); box-shadow: 0 4px 0 #8a6e16;
+    }
+    .btn-start:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+    .btn-back {
+      background: transparent; border: 2px solid var(--wood-mid); color: var(--wood-dark); margin-top: 12px;
+    }
+    .hint { font-size: 0.8rem; color: var(--wood-mid); margin-top: 16px; }
+    .net { font-size: 0.78rem; margin-top: 8px; color: #5a3a22; }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <h1>⚓ 商船等待室</h1>
+    <div class="room-code" id="roomCodeDisplay">SAIL-XXXX</div>
+    <p style="font-size:0.9rem;color:#5a3a22;">將此編號告訴同伴加入</p>
+    <div class="players" id="playerList"></div>
+    <button class="btn btn-start" id="startBtn" onclick="startGame()">啟航開始遊戲</button>
+    <button class="btn btn-back" onclick="location.href='lobby.html'">返回大廳</button>
+    <p class="net" id="netStatus">聯機中…</p>
+    <p class="hint">需啟動聯機伺服器（埠 8766）<br>遊戲開始後若滑掉，可用同一房間與玩家 ID 重連</p>
+  </div>
+  <script src="net.js"></script>
+  <script>
+    let room = JSON.parse(localStorage.getItem('currentRoom') || '{}');
+    const myId = parseInt(localStorage.getItem('myPlayerId') || '0', 10);
+
+    document.getElementById('roomCodeDisplay').textContent = room.code || 'SAIL-????';
+
+    function renderPlayers() {
+      const list = document.getElementById('playerList');
+      list.innerHTML = '';
+      const max = room.maxPlayers || 4;
+      const players = room.players || [];
+      for (let i = 0; i < max; i++) {
+        const p = players[i];
+        const div = document.createElement('div');
+        div.className = 'player-slot' + (p ? '' : ' empty');
+        if (p) {
+          const host = p.isHost || p.id === room.hostId;
+          div.innerHTML = '<div class="avatar">' + (host ? '👑' : '🧑‍✈️') + '</div><div><div style="font-weight:700;">' +
+            p.name + (p.id === myId ? '（我）' : '') + '</div><div style="font-size:0.75rem;color:#5a3a22;">' +
+            (host ? '房主' : '船員') + ' · ID ' + p.id + '</div></div>';
+        } else {
+          div.innerHTML = '<div class="avatar">?</div><div style="opacity:0.7;">等待船員…</div>';
+        }
+        list.appendChild(div);
+      }
+      const me = players.find(p => p.id === myId);
+      const isHost = me && (me.isHost || me.id === room.hostId);
+      const btn = document.getElementById('startBtn');
+      btn.disabled = !isHost || players.length < 2;
+      btn.textContent = isHost
+        ? (players.length < 2 ? '至少需要 2 人才能啟航' : '啟航開始遊戲')
+        : '等待房主啟航…';
+    }
+
+    function applyRoom(r) {
+      if (!r) return;
+      room = r;
+      localStorage.setItem('currentRoom', JSON.stringify(r));
+      document.getElementById('roomCodeDisplay').textContent = r.code || 'SAIL-????';
+      renderPlayers();
+    }
+
+    function startGame() { GameNet.startGame(); }
+
+    GameNet.on('open', () => {
+      document.getElementById('netStatus').textContent = '聯機：已連線';
+      if (room.code && myId) GameNet.reconnect(room.code, myId);
+    });
+    GameNet.on('close', () => { document.getElementById('netStatus').textContent = '聯機：斷線重連中…'; });
+    GameNet.on('error', (d) => { document.getElementById('netStatus').textContent = '聯機：' + (d.message || '錯誤'); });
+    GameNet.on('room_update', (d) => applyRoom(d.room));
+    GameNet.on('reconnected', (d) => {
+      applyRoom(d.room);
+      if (d.status === 'playing') location.href = 'game.html';
+    });
+    GameNet.on('game_start', (d) => {
+      applyRoom(d.room);
+      location.href = 'game.html';
+    });
+
+    renderPlayers();
+    GameNet.connect();
+  </script>
+</body>
+</html>

@@ -1,0 +1,3079 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>大航海期貨所 - 船上交易</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Noto+Serif+TC:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --wood-dark: #3d2414;
+      --wood-light: #8b5e3c;
+      --deck: #6b4c32;
+      --plank: #7a5638;
+      --gold: #c9a227;
+      --parchment: #f0e0b8;
+      --navy: #0d2137;
+      --green-zone: #2d6a4f;
+      --yellow-zone: #b7890a;
+      --red-zone: #9b2226;
+      --ink: #1a120b;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Noto Serif TC', serif;
+      color: var(--parchment);
+      background: #0a1620;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    .ship-deck {
+      min-height: 100vh;
+      background:
+        radial-gradient(ellipse 120% 80% at 50% -10%, rgba(80,140,180,0.35) 0%, transparent 55%),
+        radial-gradient(ellipse 80% 50% at 80% 100%, rgba(201,162,39,0.12) 0%, transparent 50%),
+        linear-gradient(165deg, #0c1e32 0%, #153048 35%, #1a3d4a 60%, #243528 100%);
+      padding: 10px 12px 100px;
+      position: relative;
+    }
+    .ship-deck::before {
+      content: "";
+      position: absolute; inset: 0;
+      background-image:
+        radial-gradient(circle at 20% 30%, rgba(255,255,255,0.03) 0%, transparent 40%),
+        radial-gradient(circle at 70% 60%, rgba(255,255,255,0.02) 0%, transparent 35%);
+      pointer-events: none;
+    }
+
+    .top-bar {
+      display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: stretch; justify-content: space-between;
+      background: linear-gradient(145deg, rgba(12,28,48,0.94), rgba(10,22,38,0.92));
+      border: 1px solid rgba(201,162,39,0.5);
+      border-radius: 16px;
+      padding: 12px 16px;
+      margin-bottom: 14px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 10px 28px rgba(0,0,0,0.3);
+      position: relative;
+      z-index: 1;
+    }
+    .stat {
+      display: flex; flex-direction: column; min-width: 72px;
+      padding: 4px 8px; border-radius: 10px;
+      background: rgba(255,255,255,0.03);
+    }
+    .stat-label { font-size: 0.68rem; color: #a89060; letter-spacing: 0.04em; }
+    .stat-value { font-family: 'Cinzel', serif; font-size: 1.12rem; font-weight: 700; color: var(--gold); line-height: 1.25; }
+    .stat-value.negative { color: #e74c3c; }
+    .round-info {
+      font-family: 'Cinzel', serif; font-size: 0.95rem;
+      background: rgba(201,162,39,0.15); padding: 6px 12px; border-radius: 4px;
+      border: 1px solid rgba(201,162,39,0.4);
+    }
+    .phase-tag {
+      font-size: 0.8rem; padding: 4px 10px; border-radius: 4px;
+      background: var(--green-zone); color: #fff; font-weight: 600;
+    }
+
+    .toast {
+      display: none;
+      position: fixed;
+      top: 16px; left: 50%; transform: translateX(-50%);
+      background: rgba(13,33,55,0.96);
+      border: 2px solid var(--gold);
+      color: var(--parchment);
+      padding: 12px 20px;
+      border-radius: 8px;
+      z-index: 300;
+      max-width: 90%;
+      text-align: center;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      font-size: 0.95rem;
+    }
+    .toast.show { display: block; }
+    .toast.error { border-color: #e74c3c; }
+    .toast.success { border-color: #2d6a4f; }
+
+    .section-title {
+      font-family: 'Cinzel', serif; font-size: 0.85rem; color: var(--gold);
+      letter-spacing: 0.12em; margin-bottom: 8px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .section-title::after {
+      content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, var(--gold), transparent);
+    }
+
+    .players-bar { display: flex; gap: 10px; overflow-x: auto; margin-bottom: 14px; padding-bottom: 4px; scrollbar-width: thin; }
+    .player-card {
+      flex: 0 0 auto; min-width: 148px;
+      background: linear-gradient(160deg, rgba(16,32,52,0.95), rgba(10,22,38,0.92));
+      border: 1px solid rgba(90,120,150,0.55);
+      border-radius: 14px;
+      padding: 12px 12px 10px;
+      backdrop-filter: blur(6px);
+      transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+    }
+    .player-card:hover { transform: translateY(-2px); border-color: rgba(201,162,39,0.55); }
+    .player-card.me {
+      border-color: var(--gold);
+      box-shadow: 0 0 0 1px rgba(201,162,39,0.35), 0 6px 20px rgba(201,162,39,0.18);
+      background: linear-gradient(160deg, rgba(40,32,12,0.95), rgba(16,28,40,0.95));
+    }
+    .player-card .pc-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .player-card .pc-avatar {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, #2a4a6a, #0d2137);
+      border: 2px solid var(--gold);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.05rem; flex-shrink: 0;
+    }
+    .player-card.me .pc-avatar { background: radial-gradient(circle at 30% 30%, #5a4a1a, #2a2010); }
+    .player-card .pc-meta { min-width: 0; }
+    .player-card .name { font-size: 0.88rem; font-weight: 700; color: var(--gold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .player-card .pc-job { font-size: 0.68rem; color: #8ab4d8; margin-top: 1px; }
+    .profile-title-banner {
+      position: relative; width: 100%; min-height: 64px; border-radius: 10px;
+      overflow: hidden; margin-bottom: 12px;
+      border: 2px solid rgba(201,162,39,0.75);
+      box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+      display: flex; align-items: center; justify-content: center;
+      background: #c47820;
+    }
+    .profile-title-banner img.pt-img {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      object-fit: cover; object-position: center; z-index: 0;
+    }
+    .profile-title-banner .pt-shade {
+      position: absolute; inset: 0; z-index: 1;
+      background: linear-gradient(90deg, rgba(20,8,0,0.55), rgba(40,20,0,0.25) 45%, rgba(20,8,0,0.55));
+    }
+    .profile-title-banner .pt-text {
+      position: relative; z-index: 2;
+      font-family: 'Cinzel', 'Noto Serif TC', serif;
+      font-weight: 800; font-size: 1.25rem; letter-spacing: 0.22em;
+      color: #fff8dc;
+      text-shadow:
+        0 1px 0 #6b3e10,
+        0 2px 0 #3d2410,
+        0 0 10px rgba(255,196,60,0.75),
+        0 0 2px #000;
+    }
+    .pc-title-chip {
+      margin-top: 3px; font-size: 0.65rem; font-weight: 700;
+      letter-spacing: 0.08em; color: #ffe9a8;
+      text-shadow: 0 1px 2px #000;
+    }
+    .player-card .pc-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; }
+    .player-card .pc-stat-label { font-size: 0.62rem; color: #8a7a5a; }
+    .player-card .pc-stat-val { font-family: 'Cinzel', serif; font-size: 0.82rem; font-weight: 700; color: #d8e8d8; }
+    .player-card .pc-stat-val.neg { color: #e74c3c; }
+    .player-card .pc-stat-val.net { color: #e8c547; }
+    .player-card .pc-foot { margin-top: 6px; font-size: 0.65rem; color: #6a8a9a; text-align: center; }
+
+    .crates {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 14px;
+      position: relative;
+      z-index: 1;
+    }
+    @media (min-width: 700px) { .crates { grid-template-columns: repeat(6, 1fr); } }
+    .crate {
+      border-radius: 12px;
+      padding: 12px 8px 12px;
+      text-align: center;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s;
+      border: 2px solid rgba(255,255,255,0.2);
+      box-shadow: 0 6px 16px rgba(0,0,0,0.3);
+      position: relative;
+      overflow: hidden;
+    }
+    .crate:active { transform: scale(0.97); }
+    .crate.selected { box-shadow: 0 0 0 3px var(--gold), 0 6px 16px rgba(0,0,0,0.3); }
+    .crate-icon { font-size: 1.6rem; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.3)); }
+    .crate-name { font-size: 0.85rem; font-weight: 700; color: #fff; margin: 4px 0 2px; text-shadow: 0 1px 3px rgba(0,0,0,0.5); }
+    .crate-price { font-family: 'Cinzel', serif; font-size: 1.3rem; font-weight: 700; color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,0.45); }
+    .crate-zone {
+      font-size: 0.65rem; margin-top: 4px; padding: 2px 8px; border-radius: 999px;
+      display: inline-block; font-weight: 600;
+    }
+    .zone-green { background: rgba(45,106,79,0.9); color: #fff; }
+    .zone-yellow { background: rgba(183,137,10,0.95); color: #1a120b; }
+    .zone-red { background: rgba(155,34,38,0.9); color: #fff; }
+    .zone-blue { background: rgba(26,79,138,0.95); color: #fff; }
+    .crate-stock {
+      margin-top: 6px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #fff;
+      background: rgba(0,0,0,0.4);
+      border-radius: 6px;
+      padding: 3px 8px;
+      display: inline-block;
+    }
+    /* 各貨物木箱底色 */
+    .crate-cotton { background: linear-gradient(160deg, #f5f0e6 0%, #d4c4a8 50%, #b8a070 100%); }
+    .crate-cotton .crate-name, .crate-cotton .crate-price { color: #3d2e1a; text-shadow: none; }
+    .crate-coal { background: linear-gradient(160deg, #5a5a5a 0%, #2c2c2c 50%, #1a1a1a 100%); }
+    .crate-tea { background: linear-gradient(160deg, #52b788 0%, #2d6a4f 50%, #1b4332 100%); }
+    .crate-coffee { background: linear-gradient(160deg, #6F4E37 0%, #4a3220 50%, #2c1810 100%); }
+    .crate-wheat { background: linear-gradient(160deg, #f6e27a 0%, #d4a017 50%, #a67c00 100%); }
+    .crate-wheat .crate-name, .crate-wheat .crate-price { color: #3d2e1a; text-shadow: none; }
+    .crate-corn { background: linear-gradient(160deg, #f4d35e 0%, #ee9b00 55%, #ca6702 100%); }
+    .crate-corn .crate-name, .crate-corn .crate-price { color: #3d2e1a; text-shadow: none; }
+
+    .hold-section {
+      background: rgba(10,24,40,0.82);
+      border: 1px solid rgba(201,162,39,0.45);
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 14px;
+      backdrop-filter: blur(6px);
+      position: relative;
+      z-index: 1;
+    }
+    .hold-slots {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+    @media (min-width: 700px) { .hold-slots { grid-template-columns: repeat(6, 1fr); } }
+    .hold-slot {
+      background: rgba(0,0,0,0.25);
+      border: 2px dashed #5a6a7a;
+      border-radius: 6px;
+      min-height: 78px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 8px;
+      cursor: default;
+    }
+    .hold-slot.filled {
+      border-style: solid;
+      border-color: var(--gold);
+      background: rgba(201,162,39,0.12);
+      cursor: pointer;
+    }
+    .hold-slot.filled:active { transform: scale(0.97); }
+    .hold-slot .h-icon { font-size: 1.3rem; }
+    .hold-slot .h-name { font-size: 0.8rem; font-weight: 700; color: var(--gold); margin-top: 2px; }
+    .hold-slot .h-qty { font-family: 'Cinzel', serif; font-size: 1.1rem; color: #fff; }
+    .hold-slot .h-empty { font-size: 0.75rem; color: #6a8a9a; }
+    .hold-slot .h-hint { font-size: 0.65rem; color: #a89060; margin-top: 2px; }
+
+    .board-wrap {
+      background: rgba(10,24,40,0.82);
+      border: 1px solid rgba(201,162,39,0.45);
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 14px;
+      overflow-x: auto;
+      backdrop-filter: blur(6px);
+      position: relative;
+      z-index: 1;
+    }
+    .chess-board {
+      display: grid;
+      grid-template-columns: 72px repeat(40, minmax(22px, 1fr));
+      gap: 3px;
+      min-width: 1080px;
+      padding: 4px 2px;
+    }
+    .board-label {
+      font-size: 0.72rem; color: var(--gold);
+      display: flex; align-items: center; gap: 4px;
+      font-weight: 700; padding-right: 4px;
+      white-space: nowrap;
+    }
+    .board-head {
+      font-size: 0.55rem; text-align: center; font-weight: 700;
+      padding: 2px 0 4px; line-height: 1.15;
+      border-bottom: 2px solid transparent;
+    }
+    .board-head.hg { color: #7dcea0; border-bottom-color: #2d6a4f; }
+    .board-head.hy { color: #f4d03f; border-bottom-color: #b7890a; }
+    .board-head.hr { color: #f1948a; border-bottom-color: #9b2226; }
+    .board-head.hb { color: #7eb8ff; border-bottom-color: #1a4f8a; }
+    .cell {
+      min-height: 34px;
+      border-radius: 5px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.58rem; font-weight: 700;
+      border: 1px solid rgba(255,255,255,0.1);
+      transition: transform 0.12s, box-shadow 0.12s;
+    }
+    .cell.zone-edge-left { border-left: 2px solid rgba(255,255,255,0.25); }
+    /* 未走到：暗色區間底 */
+    .cell.dim-green {
+      background: linear-gradient(180deg, #1e3830, #152820); color: rgba(125,206,160,0.4); border-color: #2a4538;
+    }
+    .cell.dim-yellow {
+      background: linear-gradient(180deg, #353018, #2a2610); color: rgba(244,208,63,0.4); border-color: #4a4020;
+    }
+    .cell.dim-red {
+      background: linear-gradient(180deg, #32181c, #241014); color: rgba(241,148,138,0.4); border-color: #4a282c;
+    }
+    .cell.dim-blue {
+      background: linear-gradient(180deg, #142844, #0c1830); color: rgba(100,180,255,0.4); border-color: #1e3a5a;
+    }
+    /* 已走到：亮色 */
+    .cell.filled-green {
+      background: linear-gradient(180deg, #3d8a64, #2d6a4f); color: #fff; border-color: #4caa78;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.15);
+    }
+    .cell.filled-yellow {
+      background: linear-gradient(180deg, #d4a820, #b7890a); color: #1a120b; border-color: #e8c547;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.2);
+    }
+    .cell.filled-red {
+      background: linear-gradient(180deg, #c0392b, #9b2226); color: #fff; border-color: #e74c3c;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.12);
+    }
+    .cell.filled-blue {
+      background: linear-gradient(180deg, #2a6ab0, #1a4f8a); color: #fff; border-color: #4a90d0;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.15);
+    }
+    .cell.current {
+      box-shadow: 0 0 0 2px #fff, 0 0 16px var(--gold), inset 0 0 8px rgba(255,255,255,0.25);
+      color: #fff !important;
+      font-size: 0.85rem;
+      font-weight: 800;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.85);
+      z-index: 2;
+      position: relative;
+      transform: scale(1.08);
+      border-radius: 6px;
+    }
+    .player-card { cursor: pointer; }
+    .qty-input, .qty-input:focus { caret-color: transparent; }
+    .qty-quick-row {
+      display: flex; gap: 10px; margin: 6px 0 12px;
+    }
+    .qty-quick {
+      flex: 1; padding: 12px 10px; border-radius: 12px; border: none;
+      font-family: inherit; font-weight: 800; font-size: 0.92rem;
+      letter-spacing: 0.04em; cursor: pointer;
+      box-shadow: 0 3px 0 rgba(0,0,0,0.2);
+      transition: transform 0.12s, filter 0.12s;
+    }
+    .qty-quick:active { transform: translateY(1px); }
+    .qty-quick.half {
+      background: linear-gradient(180deg, #3d6b8a 0%, #1a3a4a 100%);
+      color: #f3e5c5; border: 1px solid #c9a227;
+    }
+    .qty-quick.all {
+      background: linear-gradient(180deg, #e8c547 0%, #c9a227 55%, #a8841a 100%);
+      color: #1a120b; border: 1px solid #8a6e16;
+    }
+    .zone-legend {
+      display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; font-size: 0.78rem;
+    }
+    .zone-legend span {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 4px 10px; border-radius: 8px; font-weight: 700;
+    }
+    .zone-legend .lg { background: #2d6a4f; color: #fff; }
+    .zone-legend .ly { background: #b7890a; color: #1a120b; }
+    .zone-legend .lr { background: #9b2226; color: #fff; }
+    .zone-legend .lb { background: #1a4f8a; color: #fff; }
+
+    .hand-section {
+      background: rgba(10,24,40,0.82);
+      border: 1px solid rgba(201,162,39,0.45);
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 14px;
+      backdrop-filter: blur(6px);
+      position: relative;
+      z-index: 1;
+    }
+    .cards-row { display: flex; gap: 10px; overflow-x: auto; padding: 8px 0; min-height: 112px; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; }
+    @media (max-width: 640px) {
+      .cards-row { gap: 8px; padding: 6px 2px 10px; }
+      .card { flex: 0 0 auto; width: 76px; min-width: 76px; height: 96px; }
+    }
+    .card {
+      flex: 0 0 auto; width: 88px; height: 108px;
+      border: 2px solid rgba(255,255,255,0.35);
+      border-radius: 10px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      color: #fff; font-weight: 700;
+      cursor: pointer;
+      padding: 6px;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.25);
+      position: relative;
+      overflow: hidden;
+    }
+    .card.selected {
+      outline: 3px solid var(--gold);
+      transform: translateY(-4px);
+      box-shadow: 0 6px 16px rgba(201,162,39,0.4);
+    }
+    .card .val {
+      font-family: 'Cinzel', serif; font-size: 1.4rem; line-height: 1.1;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+    }
+    .card .good { font-size: 0.82rem; margin-top: 3px; opacity: 0.95; text-shadow: 0 1px 2px rgba(0,0,0,0.4); }
+    .card .card-icon { font-size: 1.5rem; margin-bottom: 3px; }
+    .card.plus .val { color: #b8f5c8; }
+    .card.minus .val { color: #ffb3b3; }
+    .card.private { border-color: #c9a0e8; box-shadow: 0 0 0 1px #6a3a8a, 0 3px 10px rgba(0,0,0,0.25); }
+    /* 卡牌依貨物底色 */
+    .card-cotton { background: linear-gradient(160deg, #f5f0e6, #c4b090); color: #3d2e1a; }
+    .card-cotton .val, .card-cotton .good { text-shadow: none; }
+    .card-cotton.plus .val { color: #1b6b3a; }
+    .card-cotton.minus .val { color: #9b2226; }
+    .card-coal { background: linear-gradient(160deg, #6a6a6a, #2a2a2a); }
+    .card-tea { background: linear-gradient(160deg, #52b788, #1b4332); }
+    .card-coffee { background: linear-gradient(160deg, #8B6914, #3d2414); }
+    .card-wheat { background: linear-gradient(160deg, #f6e27a, #a67c00); color: #3d2e1a; }
+    .card-wheat .val, .card-wheat .good { text-shadow: none; }
+    .card-wheat.plus .val { color: #1b6b3a; }
+    .card-wheat.minus .val { color: #9b2226; }
+    .card-corn { background: linear-gradient(160deg, #f4d35e, #ca6702); color: #3d2e1a; }
+    .card-corn .val, .card-corn .good { text-shadow: none; }
+    .card-corn.plus .val { color: #1b6b3a; }
+    .card-corn.minus .val { color: #9b2226; }
+
+    /* 選牌購買用的小格 */
+    .pick-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      margin: 10px 0;
+      max-height: 220px;
+      overflow-y: auto;
+    }
+    .pick-card {
+      background: #f0e0b8;
+      border: 2px solid #5c3a21;
+      border-radius: 4px;
+      padding: 8px 4px;
+      text-align: center;
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--ink);
+    }
+    .pick-card.plus { color: #1b6b3a; }
+    .pick-card.minus { color: #9b2226; }
+    .pick-card.selected {
+      border-color: var(--gold);
+      background: #ffe9a8;
+      box-shadow: 0 0 0 2px var(--gold);
+    }
+    .pick-card .pg { font-size: 0.65rem; color: #5a3a22; margin-top: 2px; font-weight: 600; }
+
+    .action-bar {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: rgba(13,33,55,0.97);
+      border-top: 2px solid var(--gold);
+      padding: 10px 12px;
+      display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
+      z-index: 100;
+    }
+    .action-bar button {
+      font-family: 'Noto Serif TC', serif; font-weight: 600; font-size: 0.9rem;
+      padding: 10px 14px; border-radius: 4px; border: none; cursor: pointer; min-width: 84px;
+    }
+    .btn-gold { background: linear-gradient(180deg, #e8c547, #c9a227); color: #1a120b; box-shadow: 0 3px 0 #8a6e16; }
+    .btn-navy { background: #1a3a4a; color: var(--parchment); border: 1px solid var(--gold) !important; }
+    /* btn polish */
+    .action-bar button, .btn-green, .btn-navy, .btn-gold, .btn-red, .btn-purple {
+      border-radius: 12px !important;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      transition: transform 0.12s, filter 0.12s, box-shadow 0.12s;
+    }
+    .action-bar button:active:not(:disabled), .btn-green:active, .btn-navy:active, .btn-gold:active, .btn-red:active {
+      transform: translateY(1px) scale(0.98);
+    }
+    .action-bar button:disabled { cursor: not-allowed; }
+    .btn-green { background: #2d6a4f; color: #fff; }
+    .btn-red { background: #9b2226; color: #fff; }
+    .btn-purple { background: #5a3a7a; color: #fff; }
+
+    .modal-mask {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.72);
+      z-index: 200; align-items: center; justify-content: center; padding: 16px;
+      overscroll-behavior: contain;
+    }
+    .modal-mask.show { display: flex; }
+    .modal {
+      background: var(--parchment); color: var(--ink);
+      border: 3px solid var(--gold); border-radius: 8px;
+      padding: 20px; max-width: 360px; width: 100%;
+      box-shadow: 0 0 0 4px var(--wood-dark);
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+      max-height: 88vh;
+      overflow-y: auto;
+    }
+    .modal h3 { font-family: 'Cinzel', serif; margin-bottom: 10px; color: var(--wood-dark); }
+    .modal p { font-size: 0.9rem; margin-bottom: 8px; color: #4a3020; }
+    .modal label { font-size: 0.85rem; color: #5a3a22; display: block; margin-top: 8px; }
+    /* 期貨風數量控制器 */
+    .qty-control {
+      display: flex; align-items: stretch; gap: 0;
+      margin: 10px 0 14px;
+      border: 2px solid #c9a227;
+      border-radius: 8px;
+      overflow: hidden;
+      background: linear-gradient(180deg, #1a3040 0%, #0d2137 100%);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 4px 12px rgba(0,0,0,0.2);
+      touch-action: manipulation;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    .qty-btn {
+      width: 52px; min-height: 48px; border: none; cursor: pointer;
+      background: linear-gradient(180deg, #3d5a6a 0%, #1a3040 100%);
+      color: #e8c547; font-size: 1.4rem; font-weight: 700;
+      font-family: 'Cinzel', serif;
+      transition: filter 0.15s;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    .qty-btn:hover { filter: brightness(1.2); }
+    .qty-btn:active { filter: brightness(0.9); }
+    .qty-input {
+      flex: 1; border: none; outline: none;
+      text-align: center;
+      font-family: 'Cinzel', serif;
+      font-size: 1.4rem; font-weight: 700;
+      color: #f0e0b8;
+      background: transparent;
+      padding: 12px 8px;
+      min-width: 0;
+      -moz-appearance: textfield;
+    }
+    .qty-input::-webkit-outer-spin-button,
+    .qty-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .qty-hint {
+      font-size: 0.8rem; color: #8a6e4a; margin-top: -8px; margin-bottom: 10px;
+    }
+    .modal-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .modal-actions button {
+      flex: 1; padding: 12px; font-weight: 700; border: none; border-radius: 4px; cursor: pointer;
+      font-family: 'Noto Serif TC', serif; min-width: 100px;
+    }
+
+    .must-repay-bar {
+      display: none;
+      background: #9b2226;
+      color: #fff;
+      text-align: center;
+      padding: 10px;
+      font-weight: 700;
+      margin-bottom: 10px;
+      border-radius: 6px;
+      border: 2px solid #e74c3c;
+    }
+    .must-repay-bar.show { display: block; }
+
+    /* 開場輪盤 / 大字幕 */
+    .cinema-mask {
+      position: fixed; inset: 0; z-index: 9999;
+      background: rgba(4, 12, 22, 0.92);
+      display: none; align-items: center; justify-content: center;
+      flex-direction: column; padding: 24px;
+    }
+    .cinema-mask.show { display: flex; }
+    .cinema-title {
+      font-family: 'Cinzel', 'Noto Serif TC', serif;
+      font-size: clamp(1.8rem, 6vw, 3rem);
+      font-weight: 800; color: #e8c547;
+      text-align: center; letter-spacing: 0.12em;
+      text-shadow: 0 0 24px rgba(201,162,39,0.55);
+      opacity: 0; transform: scale(0.92);
+      transition: opacity 0.8s ease, transform 0.8s ease;
+      margin-bottom: 16px;
+    }
+    .cinema-title.show { opacity: 1; transform: scale(1); }
+    .cinema-sub {
+      color: #c8b890; font-size: 1rem; text-align: center; margin-bottom: 20px;
+      opacity: 0; transition: opacity 0.6s ease;
+    }
+    .cinema-sub.show { opacity: 1; }
+    .roulette-wrap {
+      position: relative; width: min(280px, 70vw); height: min(280px, 70vw);
+      margin: 12px auto 20px;
+    }
+    .roulette-wheel {
+      width: 100%; height: 100%; border-radius: 50%;
+      border: 6px solid #c9a227;
+      box-shadow: 0 0 0 4px #2c1810, 0 0 30px rgba(201,162,39,0.35);
+      background: conic-gradient(#1a3a4a 0deg, #0b1c2c 60deg, #1a3a4a 120deg, #0b1c2c 180deg, #1a3a4a 240deg, #0b1c2c 300deg, #1a3a4a 360deg);
+      transition: transform 4s cubic-bezier(0.15, 0.85, 0.25, 1);
+      position: relative;
+    }
+    .roulette-pointer {
+      position: absolute; top: -18px; left: 50%; transform: translateX(-50%);
+      width: 0; height: 0;
+      border-left: 12px solid transparent; border-right: 12px solid transparent;
+      border-top: 22px solid #e8c547; z-index: 2;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+    }
+    .roulette-center {
+      position: absolute; inset: 32%; border-radius: 50%;
+      background: radial-gradient(circle, #e8c547, #8a6e16);
+      border: 3px solid #2c1810;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; color: #1a120b; font-size: 0.85rem; text-align: center;
+      z-index: 1;
+    }
+    .roulette-labels {
+      position: absolute; inset: 0; border-radius: 50%;
+    }
+    .roulette-labels span {
+      position: absolute; left: 50%; top: 50%;
+      width: 70px; margin-left: -35px; margin-top: -10px;
+      text-align: center; font-size: 0.78rem; font-weight: 700; color: #f3e5c5;
+      transform-origin: 50% 50%;
+    }
+    .cinema-actions { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; margin-top: 8px; }
+    .cinema-actions button {
+      min-width: 140px; padding: 14px 20px; border-radius: 12px; border: none;
+      font-family: 'Cinzel', 'Noto Serif TC', serif; font-weight: 700; font-size: 1rem;
+      cursor: pointer;
+    }
+    .cinema-actions .cw { background: linear-gradient(180deg,#e8c547,#c9a227); color: #1a120b; }
+    .cinema-actions .ccw { background: linear-gradient(180deg,#16324a,#0b1c2c); color: #f3e5c5; border: 2px solid #c9a227; }
+    .buy-round-banner {
+      position: fixed; inset: 0; z-index: 9998;
+      display: none; align-items: center; justify-content: center;
+      background: rgba(4,12,22,0.75); pointer-events: none;
+    }
+    .buy-round-banner.show { display: flex; }
+    .buy-round-banner span {
+      font-family: 'Cinzel', 'Noto Serif TC', serif;
+      font-size: clamp(2.4rem, 10vw, 4.5rem);
+      font-weight: 900; color: #e8c547; letter-spacing: 0.2em;
+      opacity: 0; transform: scale(0.8);
+      animation: buyRoundIn 1.4s ease forwards;
+      text-shadow: 0 0 40px rgba(201,162,39,0.6);
+    }
+    @keyframes buyRoundIn {
+      0% { opacity: 0; transform: scale(0.8); }
+      40% { opacity: 1; transform: scale(1.05); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+
+  </style>
+</head>
+<body>
+  <div class="toast" id="toast"></div>
+
+  <div class="ship-deck">
+    <div class="top-bar">
+      <div class="stat">
+        <span class="stat-label">現金</span>
+        <span class="stat-value" id="cashDisplay">1000</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">持倉市值</span>
+        <span class="stat-value" id="holdValueDisplay">0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">總資產</span>
+        <span class="stat-value" id="totalDisplay">1000</span>
+      </div>
+      <div class="stat" id="rightsValueStat" style="display:none;">
+        <span class="stat-label">擁有物權價格</span>
+        <span class="stat-value" id="rightsValueDisplay">0</span>
+      </div>
+      <div class="stat" id="jobValueStat" style="display:none;">
+        <span class="stat-label">職業價值</span>
+        <span class="stat-value" id="jobValueDisplay">0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">債務</span>
+        <span class="stat-value" id="debtDisplay">0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">職業收成</span>
+        <span class="stat-value" id="jobIncomeDisplay" style="color:#3dd68c;">0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">職業抽成</span>
+        <span class="stat-value" id="jobFeeDisplay" style="color:#ff6b6b;">0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">遊戲庫資金</span>
+        <span class="stat-value" id="bankDisplay" style="font-size:0.9rem;">676767</span>
+      </div>
+      <div>
+        <div class="round-info">第 <span id="roundNum">1</span> 回合</div>
+        <div style="margin-top:6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+          <span class="phase-tag" id="phaseTag">買貨階段</span>
+        </div>
+        <button type="button" onclick="openJobModal()" id="jobBtn"
+          style="margin-top:8px;padding:8px 14px;border-radius:10px;border:1px solid var(--gold);background:rgba(201,162,39,0.2);color:var(--gold);font-size:1.05rem;cursor:pointer;font-family:inherit;">
+          🎭 選擇職業
+        </button>
+      </div>
+    </div>
+
+    <div class="must-repay-bar" id="mustRepayBar">
+      ⚠ 你有未償還的最低債務，必須先還款才能結束回合
+    </div>
+
+    <!-- 物權庫（與購買頁分離，顯示在資金區下方） -->
+    <div id="rightsVault" style="display:none;background:linear-gradient(145deg,rgba(12,28,48,0.95),rgba(18,40,64,0.92));border:1px solid rgba(100,180,255,0.55);border-radius:14px;padding:12px 14px;margin-bottom:12px;box-shadow:0 6px 18px rgba(0,0,0,0.28);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px;flex-wrap:wrap;">
+        <span style="color:var(--gold);font-weight:700;font-size:0.95rem;display:inline-flex;align-items:center;gap:8px;">📦 物權庫 <span style="font-size:0.72rem;color:#8ab4d8;font-weight:600;">每回合限賣 1 項</span></span>
+        <span style="font-size:0.82rem;color:#a89060;">價值合計 <strong id="rightsVaultTotal" style="color:#7eb8ff;font-size:1rem;">0</strong></span>
+      </div>
+      <div id="rightsVaultList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;"></div>
+    </div>
+
+    <div class="players-bar" id="playersBar"></div>
+
+    <div class="section-title">貨物木箱</div>
+    <div class="crates" id="crates"></div>
+
+    <div class="hold-section">
+      <div class="section-title">我的貨艙</div>
+      <div class="hold-slots" id="holdSlots"></div>
+    </div>
+
+    <div class="board-wrap">
+      <div class="section-title">價格軌道</div>
+      <div class="zone-legend">
+        <span class="lg">綠區 0～150</span>
+        <span class="ly">黃區 151～300</span>
+        <span class="lr">紅區 301～420</span>
+        <span class="lb">藍區 421～500</span>
+      </div>
+      <div class="chess-board" id="chessBoard"></div>
+    </div>
+
+    <div class="hand-section">
+      <div class="section-title" id="myCardsTitle">我的公開牌組</div>
+      <div class="cards-row" id="myCards"></div>
+      <div class="section-title" style="margin-top:12px;" id="neighborCardsTitle">隔壁可共享牌組</div>
+      <div class="cards-row" id="neighborCards"></div>
+      <div class="section-title" style="margin-top:12px;">私有購買牌</div>
+      <div class="cards-row" id="privateCards"></div>
+    </div>
+
+  <!-- 賣出私有牌 -->
+  <div class="modal-mask" id="sellPrivateModal">
+    <div class="modal">
+      <h3>賣出私有牌</h3>
+      <p id="sellPrivateInfo">—</p>
+      <p>賣出可取回 <strong>250</strong> 元（半價回收）</p>
+      <div class="modal-actions">
+        <button class="btn-gold" onclick="confirmSellPrivate()">確認賣出</button>
+        <button class="btn-navy" onclick="closeModals()">取消</button>
+      </div>
+    </div>
+  </div>
+  </div>
+
+  <div class="action-bar" id="actionBar"></div>
+
+  <!-- 買入 -->
+  <div class="modal-mask" id="buyModal">
+    <div class="modal">
+      <h3>買入貨物</h3>
+      <p id="buyGoodName">—</p>
+      <label>購買數量（剩餘 <span id="buyStock">0</span>）</label>
+      <div class="qty-control">
+        <button type="button" class="qty-btn" onclick="stepQty('buyQty',-1,event)" onmousedown="event.preventDefault()" ontouchstart="event.preventDefault();stepQty('buyQty',-1,event)">−</button>
+        <input class="qty-input" id="buyQty" inputmode="numeric" value="1" oninput="onQtyInput('buyQty')" />
+        <button type="button" class="qty-btn" onclick="stepQty('buyQty',1,event)" onmousedown="event.preventDefault()" ontouchstart="event.preventDefault();stepQty('buyQty',1,event)">＋</button>
+      </div>
+      <div class="qty-quick-row">
+        <button type="button" class="qty-quick half" onclick="setBuyQtyHalf()">購買一半</button>
+        <button type="button" class="qty-quick all" onclick="setBuyQtyAll()">一次全部</button>
+      </div>
+      <p class="qty-hint" id="buyQtyHint">範圍 1～10</p>
+      <p style="font-size:1rem;font-weight:700;color:#3d2414;">
+        單價 <span id="buyUnitPrice">0</span>　×　<span id="buyQtyLabel">1</span>
+        ＝　總價 <span id="buyTotalCost" style="color:#9b2226;">0</span> 元
+      </p>
+      <div class="modal-actions">
+        <button class="btn-gold" onclick="confirmBuy()">確認買入</button>
+        <button class="btn-navy" onclick="closeModals()">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 賣出 -->
+  <div class="modal-mask" id="sellModal">
+    <div class="modal">
+      <h3>賣出貨物</h3>
+      <p id="sellGoodName">—</p>
+      <label>賣出數量（持有 <span id="sellHold">0</span>）</label>
+      <div class="qty-control">
+        <button type="button" class="qty-btn" onclick="stepQty('sellQty',-1,event)" onmousedown="event.preventDefault()" ontouchstart="event.preventDefault();stepQty('sellQty',-1,event)">−</button>
+        <input class="qty-input" id="sellQty" inputmode="numeric" value="1" oninput="onQtyInput('sellQty')" />
+        <button type="button" class="qty-btn" onclick="stepQty('sellQty',1,event)" onmousedown="event.preventDefault()" ontouchstart="event.preventDefault();stepQty('sellQty',1,event)">＋</button>
+      </div>
+      <div class="qty-quick-row">
+        <button type="button" class="qty-quick half" onclick="setSellQtyHalf()">賣一半</button>
+        <button type="button" class="qty-quick all" onclick="setSellQtyAll()">賣全部</button>
+      </div>
+      <p class="qty-hint" id="sellQtyHint">範圍 1～持有數</p>
+      <div class="modal-actions">
+        <button class="btn-gold" onclick="confirmSell()">確認賣出</button>
+        <button class="btn-navy" onclick="closeModals()">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 借貸 -->
+  <div class="modal-mask" id="borrowModal">
+    <div class="modal">
+      <h3>向銀行借貸</h3>
+      <p>目前債務：<strong id="borrowCurrentDebt">0</strong>　可再借：<strong id="borrowRemain">1500</strong></p>
+      <label>借貸金額（最低 50，最高 1500）</label>
+      <div class="qty-control">
+        <button type="button" class="qty-btn" onclick="stepQty('borrowAmount',-50,event)" onmousedown="event.preventDefault()" ontouchstart="event.preventDefault();stepQty('borrowAmount',-50,event)">−</button>
+        <input class="qty-input" id="borrowAmount" inputmode="numeric" value="50" oninput="onQtyInput('borrowAmount')" />
+        <button type="button" class="qty-btn" onclick="stepQty('borrowAmount',50,event)" onmousedown="event.preventDefault()" ontouchstart="event.preventDefault();stepQty('borrowAmount',50,event)">＋</button>
+      </div>
+      <p class="qty-hint" id="borrowAmountHint">範圍 50～1500</p>
+      <div class="modal-actions">
+        <button class="btn-gold" onclick="confirmBorrow()">確認借款</button>
+        <button class="btn-navy" onclick="closeModals()">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 還款 -->
+  <div class="modal-mask" id="repayModal">
+    <div class="modal">
+      <h3>償還債務</h3>
+      <p>應還本金：<strong id="repayDebt">0</strong></p>
+      <p>本筆最低：<strong id="repayMin">0</strong>　同一回合可分次湊滿 100% 結清</p>
+      <label>還款金額</label>
+      <div class="qty-control">
+        <button type="button" class="qty-btn" onclick="stepQty('repayAmount',-10,event)" onmousedown="event.preventDefault()" ontouchstart="event.preventDefault();stepQty('repayAmount',-10,event)">−</button>
+        <input class="qty-input" id="repayAmount" inputmode="numeric" value="0" oninput="onQtyInput('repayAmount')" />
+        <button type="button" class="qty-btn" onclick="stepQty('repayAmount',10,event)" onmousedown="event.preventDefault()" ontouchstart="event.preventDefault();stepQty('repayAmount',10,event)">＋</button>
+      </div>
+      <p class="qty-hint" id="repayAmountHint">範圍為最低 50%～全部債務</p>
+      <div class="modal-actions">
+        <button class="btn-gold" onclick="confirmRepay()">確認還款</button>
+        <button class="btn-navy" onclick="closeModals()">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 牌用完：補牌或結束遊戲結算 -->
+  <div class="modal-mask" id="refillModal">
+    <div class="modal">
+      <h3>公開牌已出完</h3>
+      <p>要補滿 8 張繼續遊戲，還是結束遊戲並結算排名？</p>
+      <div class="modal-actions">
+        <button class="btn-gold" onclick="refillCards()">補牌繼續</button>
+        <button class="btn-red" onclick="endGameSettle()">結束遊戲結算</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 結算排名 -->
+  <div class="modal-mask" id="settleModal">
+    <div class="modal">
+      <h3>遊戲結束 · 結算</h3>
+      <div id="settleList" style="text-align:left;margin:12px 0;"></div>
+      <div class="modal-actions">
+        <button class="btn-gold" onclick="location.href='lobby.html'">回大廳</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 玩家個人簡介 -->
+  <div class="modal-mask" id="holdingsModal">
+    <div class="modal" style="max-width:420px;">
+      <h3 id="holdingsTitle">個人簡介</h3>
+      <div id="holdingsList" style="text-align:left;margin:10px 0;max-height:58vh;overflow-y:auto;"></div>
+      <div class="modal-actions">
+        <button class="btn-navy" onclick="closeModals()">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 遊戲內選擇職業 -->
+  <div class="modal-mask" id="jobModal">
+    <div class="modal" style="max-width:400px;">
+      <h3>選擇職業</h3>
+      <p style="font-size:0.85rem;">在遊戲中選擇你的身分。銀行需支付 3000 元就任。</p>
+      <div id="jobPickGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0;"></div>
+      <p>目前職業：<strong id="currentJobLabel">尚未選擇</strong></p>
+      <div class="modal-actions">
+        <button class="btn-gold" onclick="confirmJob()">確認</button>
+        <button class="btn-navy" onclick="closeModals()">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 銀行設定貸款利息 -->
+  <div class="modal-mask" id="bankInterestModal">
+    <div class="modal">
+      <h3>🏦 銀行設定利息</h3>
+      <p>玩家申請借款：<strong id="interestLoanAmount">0</strong> 元</p>
+      <label>利息 10%～50%</label>
+      <div class="qty-control">
+        <button type="button" class="qty-btn" onclick="document.getElementById('interestRate').value=Math.max(10,(parseInt(document.getElementById('interestRate').value)||20)-5);updateInterestPreview();">−</button>
+        <input class="qty-input" id="interestRate" inputmode="numeric" value="20" oninput="updateInterestPreview()" />
+        <button type="button" class="qty-btn" onclick="document.getElementById('interestRate').value=Math.min(50,(parseInt(document.getElementById('interestRate').value)||20)+5);updateInterestPreview();">＋</button>
+      </div>
+      <p id="interestPreview" style="font-size:0.9rem;color:#4a3020;"></p>
+      <div class="modal-actions">
+        <button class="btn-gold" onclick="confirmBankInterest()">確認放貸</button>
+        <button class="btn-navy" onclick="window._pendingBorrow=null;closeModals();">拒絕</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 物權頁面：我的物權／購買／販賣 -->
+  <div class="modal-mask" id="rightsModal">
+    <div class="modal" style="max-width:420px;">
+      <h3>📜 購買物權</h3>
+      <p style="font-size:0.85rem;">買價 = 市價 × 10；持有後價值 = 市價 × 5（顯示於物權庫）。≥4 個自動主宰。</p>
+      <div id="rightsList" style="margin:10px 0;max-height:50vh;overflow-y:auto;"></div>
+      <div class="modal-actions">
+        <button class="btn-navy" onclick="closeModals()">關閉</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- 開場等待 / 輪盤 -->
+  <div class="cinema-mask" id="cinemaMask">
+    <div class="cinema-title" id="cinemaTitle">等待玩家載入中…</div>
+    <div class="cinema-sub" id="cinemaSub"></div>
+    <div class="roulette-wrap" id="rouletteWrap" style="display:none;">
+      <div class="roulette-pointer"></div>
+      <div class="roulette-wheel" id="rouletteWheel">
+        <div class="roulette-labels" id="rouletteLabels"></div>
+        <div class="roulette-center" id="rouletteCenter">?</div>
+      </div>
+    </div>
+    <div class="cinema-actions" id="cinemaActions" style="display:none;"></div>
+  </div>
+  <div class="buy-round-banner" id="buyRoundBanner"><span>買回合！</span></div>
+
+  <!-- 大銀幕提示（物權主宰等） -->
+  <div class="modal-mask" id="bigAlertModal">
+    <div class="modal" style="max-width:420px;text-align:center;">
+      <h3 id="bigAlertTitle" style="font-size:1.4rem;">提示</h3>
+      <p id="bigAlertMsg" style="font-size:1.05rem;white-space:pre-line;margin:16px 0;"></p>
+      <div class="modal-actions">
+        <button class="btn-gold" onclick="closeModals()">知道了</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 購買牌庫牌：可自選，顯示剩餘 -->
+  <div class="modal-mask" id="buyCardModal">
+    <div class="modal" style="max-width:400px;">
+      <h3>購買牌庫的牌</h3>
+      <p>牌庫剩餘總數：<strong id="deckTotalLeft">96</strong> 張</p>
+      <p>先選貨物，再選點數（括號內為該牌剩餘）</p>
+      <label>貨物</label>
+      <div class="pick-grid" id="pickGoodGrid" style="grid-template-columns:repeat(3,1fr);"></div>
+      <label>點數</label>
+      <div class="pick-grid" id="pickValueGrid"></div>
+      <p style="margin-top:8px;">已選：<strong id="pickSummary">尚未選擇</strong></p>
+      <div class="modal-actions">
+        <button class="btn-gold" onclick="confirmBuyCard()">確認購買</button>
+        <button class="btn-navy" onclick="closeModals()">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="net.js"></script>
+  <script>
+    const GOODS = [
+      { id: 'cotton', name: '棉花', icon: '☁️', price: 100, stock: 20 },
+      { id: 'coal', name: '煤炭', icon: '🪨', price: 100, stock: 20 },
+      { id: 'tea', name: '茶葉', icon: '🍵', price: 100, stock: 20 },
+      { id: 'coffee', name: '咖啡', icon: '☕', price: 100, stock: 20 },
+      { id: 'wheat', name: '小麥', icon: '🌾', price: 100, stock: 20 },
+      { id: 'corn', name: '玉米', icon: '🌽', price: 100, stock: 20 }
+    ];
+    // 已移除 ±8；以 ±6±4±2 湊滿 96 張
+    const CARD_VALUES = [6, 4, 2, -2, -4, -6];
+    // 職業：銀行（需支付 3000 成為）
+    const JOBS = [
+      {
+        id: 'bank',
+        icon: '🏦',
+        title: '銀行',
+        desc: '需付 3000 就任。收貸款利息；自己借款只還 50%，每回合限借一次。可賣出回收 2000',
+        cost: 3000,
+        sellPrice: 2000
+      },
+      {
+        id: 'rights_master',
+        icon: '🐳',
+        title: '物權主宰',
+        desc: '持有 4 個以上物權自動就任，享有全部六種物權特權；物權少於 4 自動失去',
+        cost: 0,
+        needRights: 4,
+        sellPrice: 0
+      },
+      {
+        id: 'landlord',
+        icon: '🏚️',
+        title: '地主',
+        desc: '需付 3000。出牌點數加總≠0 收「加總×100」；加總=0 收 100。可賣出 2000',
+        cost: 3000,
+        sellPrice: 2000
+      },
+      {
+        id: 'card_king',
+        icon: '🃏',
+        title: '牌王',
+        desc: '需付 3000。買牌與一般人相同 500；下一回合將本回合買牌所花金額全額回游。別人每出一張牌收 100。可賣出 2000',
+        cost: 3000,
+        sellPrice: 2000
+      },
+      {
+        id: 'shareholder',
+        icon: '🏢',
+        title: '股東',
+        desc: '敬請期待',
+        cost: 0,
+        sellPrice: 0,
+        comingSoon: true
+      },
+      {
+        id: 'risk_investor',
+        icon: '7️⃣7️⃣7️⃣',
+        title: '投資風險家',
+        desc: '敬請期待',
+        cost: 0,
+        sellPrice: 0,
+        comingSoon: true
+      }
+    ];
+    function ensureJobs(player) {
+      if (!player) return [];
+      if (!Array.isArray(player.jobs)) {
+        player.jobs = player.job ? [player.job] : [];
+      }
+      // 相容舊欄位
+      player.job = player.jobs[0] || null;
+      player.jobTitle = player.jobs.map(id => {
+        const j = JOBS.find(x => x.id === id);
+        return j ? j.title : '';
+      }).filter(Boolean).join('、');
+      return player.jobs;
+    }
+    function hasJob(player, jobId) {
+      return ensureJobs(player).includes(jobId);
+    }
+    function getJobPlayer(jobId) {
+      return room.players.find(pl => hasJob(pl, jobId)) || null;
+    }
+    function cardBuyPriceFor(player) {
+      return 500; // 牌王與一般玩家同價；回游改為下回合退還本回合買牌總額
+    }
+    // 物權：goodId -> 擁有者 playerId（null 表示無人持有）
+    const goodsRights = {};
+    GOODS.forEach(g => { goodsRights[g.id] = null; });
+    function countRights(playerId) {
+      return Object.values(goodsRights).filter(id => id === playerId).length;
+    }
+    function countGoodsTypes(player) {
+      return GOODS.filter(g => (player.holdings[g.id] || 0) > 0).length;
+    }
+    function getRightsMaster() {
+      return room.players.find(pl => hasJob(pl, 'rights_master')) || null;
+    }
+    function isJobTaken(jobId, exceptPlayerId) {
+      return room.players.some(pl => hasJob(pl, jobId) && pl.id !== exceptPlayerId);
+    }
+    // 單獨物權總價值（持有的物權：各貨物現價×10）
+    function rightsAssetValue(playerId) {
+      let v = 0;
+      GOODS.forEach(g => {
+        if (goodsRights[g.id] === playerId) v += g.price * 5;
+      });
+      return v;
+    }
+    // 物權主宰價值：場上全部六種貨物現價×5 之和
+    function rightsMasterJobValue() {
+      return GOODS.reduce((s, g) => s + g.price * 5, 0);
+    }
+    function rightUnitValue(g) { return g.price * 5; }
+    function rightBuyCost(g) { return g.price * 10; } // 購買仍為市價×10
+    // 職業價值顯示
+    function jobValueOf(player) {
+      const ids = ensureJobs(player);
+      if (!ids.length) return 0;
+      let sum = 0;
+      ids.forEach(id => {
+        const job = JOBS.find(j => j.id === id);
+        if (!job) return;
+        if (id === 'rights_master') sum += rightsMasterJobValue();
+        else sum += job.sellPrice || 0;
+      });
+      return sum;
+    }
+    function resetRightsFees() {
+      rightsSoldThisRound = 0;
+      room.players.forEach(pl => {
+        pl.paidRightsBuyThisRound = false;
+        pl.paidRightsSellThisRound = false;
+        pl.borrowedThisRound = 0;
+        pl.bankBorrowedThisRound = false;
+        // 牌王：下一回合將上一回合買牌所花金額全額回游（進入待領職業收成）
+        if (hasJob(pl, 'card_king') && (pl.cardSpendThisRound || 0) > 0) {
+          const pay = Math.min(pl.cardSpendThisRound, bankFunds);
+          bankFunds -= pay;
+          if (pl.id === myId) {
+            pendingJobIncome += pay;
+            showToast(`牌王回游 +${pay}（本回合買牌全額退還，結束買貨階段後入帳）`, 'success');
+          } else {
+            pl.cash += pay;
+          }
+        }
+        pl.boughtCardThisRound = false;
+        pl.cardSpendThisRound = 0;
+      });
+    }
+    // 某貨物的收租權歸誰：物權主宰 > 該物權持有者
+    function rightsBeneficiary(goodId) {
+      const master = getRightsMaster();
+      if (master) return master;
+      const ownerId = goodsRights[goodId];
+      if (ownerId) return room.players.find(pl => pl.id === ownerId) || null;
+      return null;
+    }
+
+    // 棋盤 40 格（橫排），價錢為整數且多為 5 的倍數，含起始 100
+    const GRID_MAX = 39;
+    const GRID_PRICES = [
+      0,15,25,40,50,65,75,90,100,115,
+      125,140,150,165,175,190,200,215,225,240,
+      250,265,275,290,300,315,325,340,350,365,
+      375,390,400,415,425,440,450,465,480,500
+    ];
+    function gridToPrice(grid) {
+      const g = Math.max(0, Math.min(GRID_MAX, grid|0));
+      return GRID_PRICES[g];
+    }
+    function priceToGrid(price) {
+      // 找最接近的格
+      let best = 0, bestDiff = Infinity;
+      for (let i = 0; i <= GRID_MAX; i++) {
+        const d = Math.abs(GRID_PRICES[i] - price);
+        if (d < bestDiff) { bestDiff = d; best = i; }
+      }
+      return best;
+    }
+    function zoneOfPrice(pv) {
+      if (pv <= 150) return 'green';
+      if (pv <= 300) return 'yellow';
+      if (pv <= 420) return 'red';
+      return 'blue'; // 最頂端藍區（在紅區之上）
+    }
+
+    // 牌庫剩餘：每種貨物 × 每種點數 各 2 張 = 96 張
+    const deckStock = {};
+    function deckKey(goodId, value) {
+      return goodId + '_' + (value > 0 ? '+' + value : String(value));
+    }
+    function initDeck() {
+      // 6 貨物 × 6 點數 × 2 = 72；每種點數再在 4 個貨物上 +1 → 每點數共 16 張，總計 96
+      GOODS.forEach(g => {
+        CARD_VALUES.forEach(v => { deckStock[deckKey(g.id, v)] = 2; });
+      });
+      CARD_VALUES.forEach(v => {
+        for (let i = 0; i < 4; i++) {
+          const g = GOODS[i % GOODS.length];
+          deckStock[deckKey(g.id, v)] += 1;
+        }
+      });
+    }
+    initDeck();
+    function deckRemain(goodId, value) {
+      return deckStock[deckKey(goodId, value)] || 0;
+    }
+    function totalDeckLeft() {
+      return Object.values(deckStock).reduce((a, b) => a + b, 0);
+    }
+
+    const room = JSON.parse(localStorage.getItem('currentRoom') || '{}');
+    const myId = parseInt(localStorage.getItem('myPlayerId') || '1');
+    const TITLE_DEFS = {
+      futures_rookie: {
+        id: 'futures_rookie',
+        name: '期貨新手',
+        banner: 'data:image/jpeg;base64,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'
+      }
+    };
+    function loadTitleData() {
+      try { return JSON.parse(localStorage.getItem('playerTitles') || '{}'); } catch (_) { return {}; }
+    }
+    function getEquippedTitleDef(player) {
+      // 僅本機玩家讀 localStorage；連機時可從 player.titleId
+      let tid = player && player.titleId;
+      if ((!tid || player.id === myId)) {
+        const d = loadTitleData();
+        if (d.equipped) tid = d.equipped;
+      }
+      return (tid && TITLE_DEFS[tid]) ? TITLE_DEFS[tid] : null;
+    }
+
+    let round = 1;
+    let phase = 'buy';
+    let selectedCards = [];
+    let mustRepayThisTurn = false;
+    let hasPlayedThisPhase = false; // 波動階段每人只能出牌一次
+    let turnOrder = [];       // 玩家 id 順序
+    let turnDir = 'cw';      // cw | ccw
+    let setupDone = false;   // 開場輪盤是否完成
+    let readyPlayers = {};   // online: playerId -> true
+    let firstPlayerId = null;
+
+    let bankFunds = 676767; // 遊戲庫資金
+    const BORROW_LIMIT = 1500; // 每回合借貸上限
+    // 職業收成（待領取，不計入總資產，結束買貨階段才入帳）／職業抽成（本回合已付）
+    let pendingJobIncome = 0;
+    let jobFeesPaid = 0;
+    let rightsSoldThisRound = 0; // 每回合限賣 1 項物權
+
+    if (!room.players) {
+      room.players = [
+        { id: 1, name: '玩家一', cash: 1000, debt: 0, holdings: {}, cards: [], privateCards: [] },
+        { id: 2, name: '玩家二', cash: 1000, debt: 0, holdings: {}, cards: [], privateCards: [] }
+      ];
+    }
+    room.players.forEach(p => {
+      if (!p.holdings) p.holdings = {};
+      if (!p.cards) p.cards = [];
+      if (!p.privateCards) p.privateCards = [];
+      if (p.cash === undefined) p.cash = 1000;
+      if (p.debt === undefined) p.debt = 0;
+      if (p.paidRightsBuyThisRound === undefined) p.paidRightsBuyThisRound = false;
+      if (p.paidRightsSellThisRound === undefined) p.paidRightsSellThisRound = false;
+      if (p.borrowedThisRound === undefined) p.borrowedThisRound = 0;
+      if (p.bankBorrowedThisRound === undefined) p.bankBorrowedThisRound = false;
+      if (p.boughtCardThisRound === undefined) p.boughtCardThisRound = false;
+      if (p.cardSpendThisRound === undefined) p.cardSpendThisRound = 0;
+      if (p.pendingCardKingRebate === undefined) p.pendingCardKingRebate = false;
+      if (p.debtAnchor === undefined) p.debtAnchor = 0;
+      if (p.debtAtTurnStart === undefined) p.debtAtTurnStart = 0;
+      if (p.repaidThisTurn === undefined) p.repaidThisTurn = 0;
+    });
+
+    // 從牌庫抽一張（有庫存才抽，並扣除牌庫數量）
+    function drawRandomFromDeck() {
+      const pool = [];
+      GOODS.forEach(g => {
+        CARD_VALUES.forEach(v => {
+          const left = deckRemain(g.id, v);
+          for (let k = 0; k < left; k++) {
+            pool.push({ good: g.id, goodName: g.name, value: v });
+          }
+        });
+      });
+      if (pool.length === 0) return null;
+      const card = pool[Math.floor(Math.random() * pool.length)];
+      const key = deckKey(card.good, card.value);
+      if (deckStock[key] > 0) deckStock[key] -= 1;
+      return card;
+    }
+
+    function dealInitialCards() {
+      room.players.forEach(pl => ensureJobs(pl));
+
+      room.players.forEach(p => {
+        if (p.cards.length === 0) {
+          for (let i = 0; i < 8; i++) {
+            const card = drawRandomFromDeck();
+            if (card) p.cards.push(card);
+          }
+        }
+      });
+    }
+    dealInitialCards();
+
+    function me() { return room.players.find(p => p.id === myId) || room.players[0]; }
+    function neighbor() {
+      const idx = room.players.findIndex(p => p.id === myId);
+      return room.players[(idx + 1) % room.players.length];
+    }
+    function getZone(price) {
+      if (price <= 150) return 'green';
+      if (price <= 300) return 'yellow';
+      if (price <= 420) return 'red';
+      return 'blue';
+    }
+    function zoneLabel(z) {
+      return z === 'green' ? '綠區' : z === 'yellow' ? '黃區' : z === 'blue' ? '藍區' : '紅區';
+    }
+    function holdValue(player) {
+      let v = 0;
+      GOODS.forEach(g => { v += (player.holdings[g.id] || 0) * g.price; });
+      return v;
+    }
+    function totalAssets(player) {
+      // 負債不計入總資產：淨資產 = 現金 + 持倉市值 - 債務（不可靠借款衝關；需淨總資產達 10000 獲勝）
+      return player.cash + holdValue(player) - (player.debt || 0);
+    }
+
+    let toastTimer = null;
+    function showToast(msg, type) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.className = 'toast show' + (type ? ' ' + type : '');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
+    }
+
+    function renderActionBar() {
+      const bar = document.getElementById('actionBar');
+      if (phase === 'setup' || !setupDone) {
+        bar.innerHTML = '<span style="color:#c9a227;font-size:0.9rem;">開場順序決定中，請稍候…</span>';
+        return;
+      }
+      if (phase === 'fluctuate') {
+        if (hasPlayedThisPhase) {
+          bar.innerHTML = `
+            <button class="btn-green" style="opacity:0.7;" disabled>出牌完成 · 自動結束中…</button>
+            <button class="btn-red" onclick="endGameSettle()">結束遊戲結算</button>
+          `;
+        } else {
+          bar.innerHTML = `
+            <button class="btn-green" onclick="playCards()">出牌（完成後自動結束階段）</button>
+            <button class="btn-navy" style="opacity:0.45;" disabled id="btnEnd">請先出牌</button>
+            <button class="btn-red" onclick="endGameSettle()">結束遊戲結算</button>
+          `;
+        }
+      } else {
+        const rightsDisabled = round < 2;
+        bar.innerHTML = `
+          <button class="btn-purple" onclick="openBorrowModal()">借貸</button>
+          <button class="btn-red" onclick="openRepayModal()">還款</button>
+          <button class="btn-navy" onclick="buyCardFromDeck()">買牌</button>
+          <button class="btn-gold" ${rightsDisabled ? 'style="opacity:0.4;cursor:not-allowed;" disabled title="第二回合起才可購買物權"' : 'onclick="openBuyRightsModal()"'}>${rightsDisabled ? '購買物權（第2回合起）' : '購買物權'}</button>
+          <button class="btn-navy" onclick="endPhase()" id="btnEnd">結束本階段</button>
+          <button class="btn-red" onclick="endGameSettle()">結束遊戲結算</button>
+        `;
+      }
+      const p = me();
+      const btnEnd = document.getElementById('btnEnd');
+      if (btnEnd && mustRepayThisTurn && p.debt > 0) {
+        btnEnd.style.opacity = '0.45';
+        btnEnd.disabled = true;
+      }
+    }
+
+    function render() {
+      const p = me();
+      const cashEl = document.getElementById('cashDisplay');
+      cashEl.textContent = p.cash;
+      cashEl.className = 'stat-value' + (p.cash < 0 ? ' negative' : '');
+      document.getElementById('holdValueDisplay').textContent = holdValue(p);
+      document.getElementById('totalDisplay').textContent = totalAssets(p);
+      document.getElementById('debtDisplay').textContent = p.debt;
+      document.getElementById('bankDisplay').textContent = bankFunds;
+      document.getElementById('roundNum').textContent = round;
+      const ji = document.getElementById('jobIncomeDisplay');
+      if (ji) ji.textContent = pendingJobIncome;
+      const jf = document.getElementById('jobFeeDisplay');
+      if (jf) jf.textContent = jobFeesPaid;
+
+      // 物權價值（市價×5）：有物權或主宰時顯示
+      const rv = hasJob(p, 'rights_master') ? rightsMasterJobValue() : rightsAssetValue(p.id);
+      const rvStat = document.getElementById('rightsValueStat');
+      if (rvStat) {
+        if (rv > 0 || hasJob(p, 'rights_master') || countRights(p.id) > 0) {
+          rvStat.style.display = '';
+          document.getElementById('rightsValueDisplay').textContent = rv;
+        } else {
+          rvStat.style.display = 'none';
+        }
+      }
+      // 職業價值（銀行 2000 等）
+      ensureJobs(p);
+      const jv = jobValueOf(p);
+      const jvStat = document.getElementById('jobValueStat');
+      if (jvStat) {
+        if (ensureJobs(p).length) {
+          jvStat.style.display = '';
+          document.getElementById('jobValueDisplay').textContent = jv;
+        } else {
+          jvStat.style.display = 'none';
+        }
+      }
+      // 物權庫列
+      renderRightsVault(p);
+
+      const phaseMap = { buy: '買貨階段', bid: '喊價階段', fluctuate: '波動出牌' };
+      document.getElementById('phaseTag').textContent = phaseMap[phase] || phase;
+      const jobBtn = document.getElementById('jobBtn');
+      if (jobBtn) {
+        const jp = me();
+        ensureJobs(jp); jobBtn.textContent = jp.jobTitle ? ('🎭 ' + jp.jobTitle) : '🎭 選擇職業';
+      }
+
+      const repayBar = document.getElementById('mustRepayBar');
+      if (mustRepayThisTurn && p.debt > 0) repayBar.classList.add('show');
+      else repayBar.classList.remove('show');
+
+      document.getElementById('playersBar').innerHTML = room.players.map(pl => {
+        const isMe = pl.id === myId;
+        ensureJobs(pl);
+        const jobIcon = (pl.jobs || []).map(id => {
+          const j = JOBS.find(x => x.id === id);
+          return j ? j.icon : '';
+        }).filter(Boolean).join('') || '🧑‍✈️';
+        const net = totalAssets(pl);
+        return `
+        <div class="player-card ${isMe ? 'me' : ''}" onclick="showPlayerHoldings(${pl.id})" title="點擊查看個人簡介">
+          <div class="pc-head">
+            <div class="pc-avatar">${jobIcon}</div>
+            <div class="pc-meta">
+              <div class="name">${pl.name}${isMe ? ' ·你' : ''}</div>
+              <div class="pc-job">${pl.jobTitle || '無職業'}${pl.isHost ? ' ·房主' : ''}</div>
+              ${(() => { const td = getEquippedTitleDef(pl); return td ? `<div class="pc-title-chip">「${td.name}」</div>` : ''; })()}
+            </div>
+          </div>
+          <div class="pc-stats">
+            <div><div class="pc-stat-label">現金</div><div class="pc-stat-val ${pl.cash < 0 ? 'neg' : ''}">${pl.cash}</div></div>
+            <div><div class="pc-stat-label">債務</div><div class="pc-stat-val ${pl.debt > 0 ? 'neg' : ''}">${pl.debt || 0}</div></div>
+            <div><div class="pc-stat-label">持倉</div><div class="pc-stat-val">${holdValue(pl)}</div></div>
+            <div><div class="pc-stat-label">淨資產</div><div class="pc-stat-val net">${net}</div></div>
+          </div>
+          <div class="pc-foot">點擊查看完整簡介</div>
+        </div>`;
+      }).join('');
+
+      // 木箱：點擊直接買（各貨物專屬底色）
+      document.getElementById('crates').innerHTML = GOODS.map(g => {
+        const z = getZone(g.price);
+        return `
+          <div class="crate crate-${g.id}" onclick="openBuyFor('${g.id}')">
+            <div class="crate-icon">${g.icon}</div>
+            <div class="crate-name">${g.name}</div>
+            <div class="crate-price">${g.price}</div>
+            <div class="crate-zone zone-${z}">${zoneLabel(z)}</div>
+            <div class="crate-stock">剩餘 ${g.stock}</div>
+          </div>
+        `;
+      }).join('');
+
+      // 貨艙：有貨的可點擊賣出
+      document.getElementById('holdSlots').innerHTML = GOODS.map(g => {
+        const qty = p.holdings[g.id] || 0;
+        if (qty > 0) {
+          return `<div class="hold-slot filled" onclick="openSellFor('${g.id}')">
+            <div class="h-icon">${g.icon}</div>
+            <div class="h-name">${g.name}</div>
+            <div class="h-qty">× ${qty}</div>
+            <div class="h-hint">點擊賣出</div>
+          </div>`;
+        }
+        return `<div class="hold-slot"><span class="h-empty">空</span></div>`;
+      }).join('');
+
+      // 標題：顯示與誰共享（保留小問號規則）
+      const n = neighbor();
+      document.getElementById('myCardsTitle').textContent =
+        phase === 'fluctuate' ? '我的公開牌組（點選 1 張）' : '我的公開牌組';
+      document.getElementById('neighborCardsTitle').textContent =
+        phase === 'fluctuate'
+          ? `與「${n.name}」共享的牌組（點選 1 張）`
+          : `與「${n.name}」共享`;
+
+      renderBoard();
+      renderCards('myCards', p.cards, 'mine');
+      renderCards('neighborCards', n.cards, 'neighbor');
+      renderCards('privateCards', p.privateCards, 'private');
+      renderActionBar();
+    }
+
+    function renderCards(containerId, cards, from) {
+      const el = document.getElementById(containerId);
+      if (!cards || cards.length === 0) {
+        el.innerHTML = '<span style="color:#6a8a9a;font-size:0.85rem;">無牌</span>';
+        return;
+      }
+      el.innerHTML = cards.map((c, i) => {
+        const isSel = selectedCards.some(s => s.from === from && s.index === i);
+        const goodCls = 'card-' + (c.good || 'cotton');
+        const cls = goodCls + ' ' + (c.value > 0 ? 'plus' : 'minus') + (from === 'private' ? ' private' : '') + (isSel ? ' selected' : '');
+        let clickable = true;
+        if (phase !== 'fluctuate' && (from === 'mine' || from === 'neighbor')) {
+          clickable = false;
+        }
+        const style = clickable ? '' : 'opacity:0.5;pointer-events:none;';
+        const handler = clickable
+          ? (from === 'private' && phase !== 'fluctuate'
+              ? `onclick="openSellPrivate(${i})"`
+              : `onclick="toggleCard('${from}',${i})"`)
+          : '';
+        const icon = (GOODS.find(g => g.id === c.good) || {}).icon || '';
+        return `<div class="card ${cls}" style="${style}" ${handler}>
+          <div class="card-icon">${icon}</div>
+          <div class="val">${c.value > 0 ? '+' : ''}${c.value}</div>
+          <div class="good">${c.goodName}</div>
+        </div>`;
+      }).join('');
+    }
+
+    function renderBoard() {
+      // 區間起始格（用於左側分隔線）
+      const zoneStarts = new Set();
+      let prevZ = null;
+      for (let i = 0; i <= GRID_MAX; i++) {
+        const z = zoneOfPrice(GRID_PRICES[i]);
+        if (z !== prevZ) { zoneStarts.add(i); prevZ = z; }
+      }
+
+      let html = '';
+      html += `<div class="board-label">格價</div>`;
+      for (let i = 0; i <= GRID_MAX; i++) {
+        const pv = GRID_PRICES[i];
+        const z = zoneOfPrice(pv);
+        const hc = z === 'green' ? 'hg' : z === 'yellow' ? 'hy' : z === 'blue' ? 'hb' : 'hr';
+        const edge = zoneStarts.has(i) ? ' zone-edge-left' : '';
+        html += `<div class="board-head ${hc}${edge}">${pv}</div>`;
+      }
+
+      GOODS.forEach(g => {
+        html += `<div class="board-label">${g.icon} ${g.name}</div>`;
+        const pos = priceToGrid(g.price);
+        g.price = gridToPrice(pos);
+        for (let i = 0; i <= GRID_MAX; i++) {
+          const cellPrice = GRID_PRICES[i];
+          const z = zoneOfPrice(cellPrice);
+          let cls = 'cell';
+          if (i <= pos) cls += ' filled-' + z;
+          else cls += ' dim-' + z;
+          if (i === pos) cls += ' current';
+          if (zoneStarts.has(i)) cls += ' zone-edge-left';
+
+          let label = '';
+          if (i === pos) label = g.price;
+          else if (i === 0 || i === pos - 1 || zoneStarts.has(i) || i === GRID_MAX) label = cellPrice;
+          else if (i <= pos && i % 5 === 0) label = cellPrice;
+
+          html += `<div class="${cls}" title="${g.name} · ${cellPrice}">${label}</div>`;
+        }
+      });
+      document.getElementById('chessBoard').innerHTML = html;
+    }
+
+    // 波動階段：自己組、隔壁組各只能亮 1 張；點另一張會取消前一張
+    function toggleCard(from, index) {
+      if (phase !== 'fluctuate' && from !== 'private') return;
+
+      if (from === 'mine' || from === 'neighbor') {
+        // 同組只保留一張
+        const same = selectedCards.find(s => s.from === from);
+        if (same && same.index === index) {
+          // 再點同一張 → 取消選取
+          selectedCards = selectedCards.filter(s => s.from !== from);
+        } else {
+          selectedCards = selectedCards.filter(s => s.from !== from);
+          selectedCards.push({ from, index });
+        }
+      } else {
+        // 私有牌：波動時可多選或單選，這裡也改成點一下切換
+        const exist = selectedCards.findIndex(s => s.from === from && s.index === index);
+        if (exist >= 0) selectedCards.splice(exist, 1);
+        else selectedCards.push({ from, index });
+      }
+      render();
+    }
+
+    // 買貨階段：點私有牌 → 詢問是否賣出
+    let _sellPrivateIndex = null;
+    function openSellPrivate(index) {
+      if (phase === 'fluctuate') return;
+      const p = me();
+      const c = p.privateCards[index];
+      if (!c) return;
+      _sellPrivateIndex = index;
+      document.getElementById('sellPrivateInfo').textContent =
+        `${c.goodName}　${c.value > 0 ? '+' : ''}${c.value}`;
+      document.getElementById('sellPrivateModal').classList.add('show');
+    }
+    function confirmSellPrivate() {
+      const p = me();
+      if (_sellPrivateIndex === null || !p.privateCards[_sellPrivateIndex]) {
+        closeModals();
+        return;
+      }
+      const c = p.privateCards[_sellPrivateIndex];
+      // 賣回半價 250，並把牌還回牌庫
+      p.cash += 250;
+      bankFunds -= 250;
+      const key = deckKey(c.good, c.value);
+      if (deckStock[key] !== undefined) deckStock[key] += 1;
+      p.privateCards.splice(_sellPrivateIndex, 1);
+      _sellPrivateIndex = null;
+      closeModals();
+      render();
+      showToast(`已賣出私有牌，取回 150 元`, 'success');
+    }
+    function closeModals() {
+      document.querySelectorAll('.modal-mask').forEach(m => m.classList.remove('show'));
+    }
+
+    // ===== 數量輸入：上下箭頭 + 鍵盤，超過上限自動鎖最高 =====
+    const qtyLimits = {
+      buyQty: { min: 1, max: 10, step: 1 },
+      sellQty: { min: 1, max: 10, step: 1 },
+      borrowAmount: { min: 50, max: 1500, step: 50 },
+      repayAmount: { min: 0, max: 1000, step: 10 }
+    };
+    function clampQty(id, val) {
+      const lim = qtyLimits[id] || { min: 0, max: 99999, step: 1 };
+      let n = parseInt(val, 10);
+      if (isNaN(n)) n = lim.min;
+      if (n < lim.min) n = lim.min;
+      if (n > lim.max) n = lim.max;
+      return n;
+    }
+    let _qtyTouchLock = 0;
+    function stepQty(id, dir, ev) {
+      if (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+      }
+      // 手機 ontouchstart + onclick 會觸發兩次，短時間內鎖住
+      const now = Date.now();
+      if (ev && ev.type === 'touchstart') {
+        _qtyTouchLock = now;
+      } else if (now - _qtyTouchLock < 450) {
+        return;
+      }
+      const lim = qtyLimits[id] || { min: 0, max: 99999, step: 1 };
+      const el = document.getElementById(id);
+      if (!el) return;
+      let n = clampQty(id, el.value);
+      n = clampQty(id, n + dir * (lim.step || 1));
+      el.value = n;
+      if (id === 'buyQty') updateBuyTotal();
+      // 避免手機點按後輸入框搶焦點導致畫面跳動
+      try { el.blur(); } catch (e) {}
+      if (document.activeElement && document.activeElement.blur) {
+        try { document.activeElement.blur(); } catch (e2) {}
+      }
+    }
+    function onQtyInput(id) {
+      const el = document.getElementById(id);
+      // 允許暫時空白，失焦或確認時再夾住
+      let raw = el.value.replace(/[^\d]/g, '');
+      if (raw === '') { el.value = ''; return; }
+      let n = parseInt(raw, 10);
+      const lim = qtyLimits[id] || { min: 0, max: 99999 };
+      if (n > lim.max) n = lim.max;
+      el.value = n;
+      if (id === 'buyQty') updateBuyTotal();
+    }
+    function readQty(id) {
+      const el = document.getElementById(id);
+      const n = clampQty(id, el.value);
+      el.value = n;
+      return n;
+    }
+
+    // 點木箱 → 買
+    function openBuyFor(id) {
+      if (phase === 'fluctuate') {
+        showToast('波動階段無法買賣貨物', 'error');
+        return;
+      }
+      const g = GOODS.find(x => x.id === id);
+      if (g.stock <= 0) { showToast('此貨物已售完', 'error'); return; }
+      document.getElementById('buyGoodName').textContent = `${g.icon} ${g.name}　單價 ${g.price}`;
+      document.getElementById('buyStock').textContent = g.stock;
+      document.getElementById('buyUnitPrice').textContent = g.price;
+      qtyLimits.buyQty = { min: 1, max: Math.max(1, g.stock), step: 1 };
+      document.getElementById('buyQty').value = 1;
+      document.getElementById('buyQtyHint').textContent = `範圍 1～${g.stock}（超過會自動改為上限）`;
+      window._buyGoodId = id;
+      updateBuyTotal();
+      document.getElementById('buyModal').classList.add('show');
+    }
+    function updateBuyTotal() {
+      const id = window._buyGoodId;
+      const g = GOODS.find(x => x.id === id);
+      if (!g) return;
+      let qty = clampQty('buyQty', document.getElementById('buyQty').value || 0);
+      document.getElementById('buyQtyLabel').textContent = qty;
+      document.getElementById('buyUnitPrice').textContent = g.price;
+      document.getElementById('buyTotalCost').textContent = qty * g.price;
+    }
+    function setBuyQtyAll() {
+      const lim = qtyLimits.buyQty || { max: 1 };
+      document.getElementById('buyQty').value = lim.max;
+      updateBuyTotal();
+    }
+    function setBuyQtyHalf() {
+      const lim = qtyLimits.buyQty || { max: 1 };
+      const half = Math.max(1, Math.floor(lim.max / 2));
+      document.getElementById('buyQty').value = half;
+      updateBuyTotal();
+    }
+
+    // 點貨艙 → 賣
+    function setSellQtyAll() {
+      const lim = qtyLimits.sellQty || { min: 1, max: 1 };
+      document.getElementById('sellQty').value = lim.max;
+      onQtyInput('sellQty');
+    }
+    function setSellQtyHalf() {
+      const lim = qtyLimits.sellQty || { min: 1, max: 1 };
+      const v = Math.max(lim.min, Math.floor(lim.max / 2));
+      document.getElementById('sellQty').value = v;
+      onQtyInput('sellQty');
+    }
+
+    function openSellFor(id) {
+      if (phase === 'fluctuate') {
+        showToast('波動階段無法買賣貨物', 'error');
+        return;
+      }
+      const g = GOODS.find(x => x.id === id);
+      const hold = me().holdings[g.id] || 0;
+      if (hold <= 0) { showToast('沒有持有此貨物', 'error'); return; }
+      document.getElementById('sellGoodName').textContent = `${g.icon} ${g.name}　單價 ${g.price}`;
+      document.getElementById('sellHold').textContent = hold;
+      qtyLimits.sellQty = { min: 1, max: hold, step: 1 };
+      document.getElementById('sellQty').value = 1;
+      document.getElementById('sellQtyHint').textContent = `範圍 1～${hold}（超過會自動改為上限）`;
+      window._sellGoodId = id;
+      document.getElementById('sellModal').classList.add('show');
+    }
+
+    function openBorrowModal() {
+      const p = me();
+      if (p.borrowedThisRound === undefined) p.borrowedThisRound = 0;
+      // 未一次還清 100% 債務前，不可再借（含銀行職業）
+      if ((p.debt || 0) > 0 || (p.debtAnchor || 0) > 0) {
+        showToast('尚有未清償債務，須一次還清 100% 後才能再借（最多 1500）', 'error');
+        return;
+      }
+      const remain = BORROW_LIMIT - p.borrowedThisRound;
+      if (remain < 50) {
+        showToast(`本回合借貸額度已用完（每回合上限 ${BORROW_LIMIT}，下回合刷新）`, 'error');
+        return;
+      }
+      if (hasJob(p, 'bank') && p.bankBorrowedThisRound) {
+        showToast('銀行本回合已借貸過，下回合才可再借', 'error');
+        return;
+      }
+      document.getElementById('borrowCurrentDebt').textContent = p.debt;
+      document.getElementById('borrowRemain').textContent = remain;
+      qtyLimits.borrowAmount = { min: 50, max: remain, step: 50 };
+      document.getElementById('borrowAmount').value = 50;
+      document.getElementById('borrowAmountHint').textContent = `可借 50～${remain}（上限 ${BORROW_LIMIT}；須還清後才能再借）`;
+      document.getElementById('borrowModal').classList.add('show');
+    }
+
+    function minRepayAmount(p) {
+      // 融合規則：
+      // 1) 債務本金（debtAnchor）未一次湊滿 100% 前不會減少
+      // 2) 每回合至少還本金的 50% 才能過關；若本回合只還到 50%，下回合仍要再還 50%
+      // 3) 同一回合可分次還款，累計達本金 100% 即一次結清（可先還 500 再補 500）
+      if ((p.debt || 0) <= 0 && (p.debtAnchor || 0) <= 0) return 0;
+      const full = p.debtAnchor > 0 ? p.debtAnchor : p.debt;
+      const already = p.repaidThisTurn || 0;
+      const need50 = Math.ceil(full * 0.5);
+      const remainTo50 = Math.max(0, need50 - already);
+      const remainTo100 = Math.max(0, full - already);
+      if (remainTo100 <= 0) return 0;
+      if (remainTo50 > 0) return Math.min(remainTo50, remainTo100);
+      // 50% 已達標：允許繼續補款直到 100% 結清
+      return Math.min(10, remainTo100) || remainTo100;
+    }
+    function openRepayModal() {
+      const p = me();
+      if ((p.debt || 0) <= 0 && (p.debtAnchor || 0) <= 0) {
+        showToast('目前沒有債務', 'error');
+        return;
+      }
+      // 以本金 anchor 為準；顯示債務與 anchor 同步
+      if (!p.debtAnchor || p.debtAnchor < p.debt) p.debtAnchor = p.debt;
+      p.debt = p.debtAnchor;
+      if (p.repaidThisTurn === undefined) p.repaidThisTurn = 0;
+      const full = p.debtAnchor;
+      const already = p.repaidThisTurn || 0;
+      const need50 = Math.ceil(full * 0.5);
+      const remainTo100 = Math.max(0, full - already);
+      const minPay = minRepayAmount(p);
+      document.getElementById('repayDebt').textContent = full;
+      document.getElementById('repayMin').textContent = minPay;
+      qtyLimits.repayAmount = { min: minPay, max: remainTo100, step: 10 };
+      document.getElementById('repayAmount').value = minPay;
+      document.getElementById('repayAmountHint').textContent =
+        `應還本金 ${full}。本回合已付 ${already}／需至少 ${need50}（50%）。` +
+        (already >= need50
+          ? `已達門檻，可再補 ${remainTo100} 一次結清。`
+          : `未滿 100% 本金不減少；可分次湊滿 ${full} 結清。`);
+      document.getElementById('repayModal').classList.add('show');
+    }
+
+    function rightsFeeDue(player, kind, goodId) {
+      const beneficiary = rightsBeneficiary(goodId);
+      if (!beneficiary || beneficiary.id === player.id) return 0;
+      if (kind === 'buy' && player.paidRightsBuyThisRound) return 0;
+      if (kind === 'sell' && player.paidRightsSellThisRound) return 0;
+      return 200;
+    }
+    function applyRightsFee(player, kind, goodId) {
+      const fee = rightsFeeDue(player, kind, goodId);
+      if (fee <= 0) return 0;
+      const beneficiary = rightsBeneficiary(goodId);
+      if (!beneficiary) return 0;
+      // 自己支付的職業抽成：先記帳，買貨階段結束時與職業收成一次結算
+      if (player.id === myId) {
+        jobFeesPaid += fee;
+      } else {
+        player.cash -= fee;
+      }
+      // 受益者若為自己：進待領職業收成；他人：直接入現金
+      if (beneficiary.id === myId) {
+        pendingJobIncome += fee;
+      } else {
+        beneficiary.cash += fee;
+      }
+      if (kind === 'buy') player.paidRightsBuyThisRound = true;
+      if (kind === 'sell') player.paidRightsSellThisRound = true;
+      return fee;
+    }
+
+    function confirmBuy() {
+      const id = window._buyGoodId;
+      const g = GOODS.find(x => x.id === id);
+      const qty = readQty('buyQty');
+      if (qty < 1 || qty > g.stock) { showToast('數量不正確', 'error'); return; }
+      const cost = qty * g.price;
+      const p = me();
+      const fee = rightsFeeDue(p, 'buy', g.id);
+      if (p.cash < cost + fee) {
+        showToast(fee > 0 ? `現金不足（貨款 ${cost} + 物權費 ${fee}）` : '現金不足', 'error');
+        return;
+      }
+      const paidFee = applyRightsFee(p, 'buy', g.id);
+      p.cash -= cost;
+      p.holdings[g.id] = (p.holdings[g.id] || 0) + qty;
+      g.stock -= qty;
+      closeModals();
+      render();
+      showToast(paidFee > 0 ? `已買入 ${g.name} × ${qty}（另付物權費 ${paidFee}）` : `已買入 ${g.name} × ${qty}`, 'success');
+      checkWin();
+      syncPush();
+    }
+
+    function confirmSell() {
+      const id = window._sellGoodId;
+      const g = GOODS.find(x => x.id === id);
+      const qty = readQty('sellQty');
+      const p = me();
+      const hold = p.holdings[g.id] || 0;
+      if (qty < 1 || qty > hold) { showToast('數量不正確', 'error'); return; }
+      const fee = rightsFeeDue(p, 'sell', g.id);
+      const income = qty * g.price;
+      if (p.cash + income < fee) {
+        showToast(`需支付物權費 ${fee} 元，資金不足`, 'error');
+        return;
+      }
+      p.cash += income;
+      const paidFee = applyRightsFee(p, 'sell', g.id);
+      p.holdings[g.id] -= qty;
+      g.stock += qty;
+      closeModals();
+      render();
+      showToast(paidFee > 0 ? `已賣出 ${g.name} × ${qty}（另付物權費 ${paidFee}）` : `已賣出 ${g.name} × ${qty}`, 'success');
+      checkWin();
+      syncPush();
+    }
+
+    function renderRightsVault(p) {
+      const vault = document.getElementById('rightsVault');
+      const list = document.getElementById('rightsVaultList');
+      if (!vault || !list) return;
+      const mine = GOODS.filter(g => goodsRights[g.id] === p.id);
+      if (mine.length === 0 && !hasJob(p, 'rights_master')) {
+        vault.style.display = 'none';
+        return;
+      }
+      vault.style.display = '';
+      const totalVal = hasJob(p, 'rights_master') ? rightsMasterJobValue() : rightsAssetValue(p.id);
+      document.getElementById('rightsVaultTotal').textContent = totalVal;
+      const canSell = rightsSoldThisRound < 1;
+      if (mine.length === 0 && hasJob(p, 'rights_master')) {
+        list.innerHTML = '<div style="grid-column:1/-1;color:#8ab4d8;font-size:0.85rem;padding:6px 0;">🐳 物權主宰特權生效中（六種貨物皆享收租）。可於「購買物權」頁管理。</div>';
+        return;
+      }
+      list.innerHTML = mine.map(g => {
+        const val = rightUnitValue(g);
+        const sellBtn = canSell
+          ? `<button onclick="sellRight('${g.id}')" style="padding:5px 10px;border-radius:8px;border:1px solid #c0392b;background:linear-gradient(180deg,#c0392b,#9b2226);color:#fff;cursor:pointer;font-size:0.75rem;font-weight:700;">賣出</button>`
+          : `<button disabled style="padding:5px 10px;border-radius:8px;border:1px solid #555;background:#333;color:#888;cursor:not-allowed;font-size:0.72rem;">本回合已賣</button>`;
+        return `<div style="background:rgba(255,255,255,0.07);border:1px solid rgba(100,180,255,0.4);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
+            <span style="font-weight:700;color:#e8f0ff;">${g.icon} ${g.name}</span>
+            <span style="color:#7eb8ff;font-weight:800;font-family:Cinzel,serif;">${val}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.72rem;color:#a89060;">
+            <span>市價 ${g.price}</span>
+            ${sellBtn}
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    // 僅購買物權（與物權庫分離）
+    function openBuyRightsModal() {
+      const p = me();
+      const list = document.getElementById('rightsList');
+      let buyHtml = '<p style="font-size:0.85rem;margin-bottom:8px;">購買價格 = 市價 × 10。持有後會出現在上方「物權庫」，價值 = 市價 × 5。物權無購買上限；每回合限賣 1 項。</p>';
+      if (round < 2) {
+        buyHtml += `<p style="font-size:0.9rem;color:#9b2226;font-weight:700;">第一回合不可購買物權，第二回合起開放。</p>`;
+      } else if (phase === 'fluctuate') {
+        buyHtml += `<p style="font-size:0.85rem;color:#8a6e4a;">波動階段無法購買</p>`;
+      } else {
+        buyHtml += GOODS.map(g => {
+          const ownerId = goodsRights[g.id];
+          const owner = ownerId ? room.players.find(pl => pl.id === ownerId) : null;
+          const cost = rightBuyCost(g);
+          const mine = ownerId === p.id;
+          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(0,0,0,0.08);gap:8px;">
+            <div>
+              <strong>${g.icon} ${g.name}</strong><br>
+              <span style="font-size:0.8rem;">市價 ${g.price}　買價 ${cost}　價值 ${rightUnitValue(g)}</span><br>
+              <span style="font-size:0.75rem;color:#5a3a22;">持有：${owner ? owner.name : '無人'}${mine ? '（你）' : ''}</span>
+            </div>
+            <button class="btn-gold" style="width:auto;padding:8px 12px;min-width:72px;${ownerId?'opacity:0.45;':''}"
+              ${ownerId ? 'disabled' : `onclick="buyRight('${g.id}')"`}>${ownerId ? '已售' : '購買'}</button>
+          </div>`;
+        }).join('');
+      }
+      const cnt = countRights(p.id);
+      list.innerHTML = buyHtml +
+        `<p style="margin-top:12px;font-size:0.9rem;">持有物權：<strong>${cnt}</strong>／6${hasJob(p,'rights_master')?'　🐳 物權主宰中':''}</p>
+         <p style="font-size:0.8rem;color:#5a3a22;">持有 ≥4 個物權自動成為物權主宰</p>`;
+      document.getElementById('rightsModal').classList.add('show');
+    }
+
+    function buyRight(goodId) {
+      if (round < 2) {
+        showToast('第一回合不可購買物權，第二回合起開放', 'error');
+        return;
+      }
+      if (phase === 'fluctuate') {
+        showToast('波動階段無法購買物權', 'error');
+        return;
+      }
+      if (goodsRights[goodId]) {
+        showToast('此物權已被購買', 'error');
+        return;
+      }
+      const g = GOODS.find(x => x.id === goodId);
+      const cost = rightBuyCost(g);
+      const p = me();
+      if (p.cash < cost) {
+        showToast(`現金不足（需 ${cost}）`, 'error');
+        return;
+      }
+      p.cash -= cost;
+      bankFunds += cost;
+      goodsRights[goodId] = p.id;
+      checkAutoRightsMaster(p);
+      render();
+      openBuyRightsModal();
+      showToast(`已購買 ${g.name} 物權（${cost} 元）`, 'success');
+    }
+
+    function sellRight(goodId) {
+      const p = me();
+      if (goodsRights[goodId] !== p.id) {
+        showToast('你沒有此物權', 'error');
+        return;
+      }
+      if (rightsSoldThisRound >= 1) {
+        showToast('本回合已賣過 1 項物權，下回合才可再賣', 'error');
+        return;
+      }
+      const g = GOODS.find(x => x.id === goodId);
+      const val = rightUnitValue(g); // 賣出價 = 市價×5
+      goodsRights[goodId] = null;
+      p.cash += val;
+      bankFunds -= val;
+      rightsSoldThisRound += 1;
+      if (hasJob(p, 'rights_master') && countRights(p.id) < 4) {
+        p.jobs = ensureJobs(p).filter(id => id !== 'rights_master');
+        ensureJobs(p);
+        showBigAlert('⚠ 物權不足 4 個', '你的物權主宰職業已自動消除');
+      }
+      render();
+      showToast(`已販賣 ${g.name} 物權，獲得 ${val} 元（本回合不可再賣物權）`, 'success');
+    }
+
+    function checkAutoRightsMaster(player) {
+      const cnt = countRights(player.id);
+      if (cnt >= 4 && !hasJob(player, 'rights_master')) {
+        if (round < 2) {
+          showToast('物權主宰僅能在第二回合起自動就任', 'error');
+          return;
+        }
+        const other = room.players.find(pl => hasJob(pl, 'rights_master') && pl.id !== player.id);
+        if (other) {
+          showToast('你已持有 4 個以上物權，但場上已有物權主宰', 'error');
+          return;
+        }
+        // 成為主宰：取得全部 6 種物權（可與其他職業並存）
+        GOODS.forEach(g => { goodsRights[g.id] = player.id; });
+        ensureJobs(player);
+        if (!player.jobs.includes('rights_master')) player.jobs.push('rights_master');
+        ensureJobs(player);
+        showBigAlert('🐳 物權主宰誕生', `「${player.name}」持有 ${cnt} 個以上物權，自動成為物權主宰！\n已獲得全部六種貨物的物權特權`);
+      }
+    }
+
+    function showBigAlert(title, msg) {
+      const mask = document.getElementById('bigAlertModal');
+      if (!mask) {
+        showToast(title + ' ' + msg, 'success');
+        return;
+      }
+      document.getElementById('bigAlertTitle').textContent = title;
+      document.getElementById('bigAlertMsg').textContent = msg;
+      mask.classList.add('show');
+    }
+
+    function getBankPlayer() {
+      return room.players.find(pl => hasJob(pl, 'bank')) || null;
+    }
+
+    function confirmBorrow() {
+      const p = me();
+      let amount = readQty('borrowAmount');
+      if (p.borrowedThisRound === undefined) p.borrowedThisRound = 0;
+      if ((p.debt || 0) > 0 || (p.debtAnchor || 0) > 0) {
+        showToast('尚有未清償債務，須一次還清 100% 後才能再借', 'error');
+        return;
+      }
+      // 每回合借貸上限 BORROW_LIMIT（且未還清前不可再借）
+      const roundRemain = BORROW_LIMIT - p.borrowedThisRound;
+      if (amount < 50) { showToast('最低借貸 50 元', 'error'); return; }
+      if (amount > roundRemain) {
+        showToast(`可借額度剩 ${roundRemain}（上限 ${BORROW_LIMIT}，還清前不可再借）`, 'error');
+        return;
+      }
+
+      const bank = getBankPlayer();
+      // 銀行自己借款：只需負擔 50% 債務，每回合只能借一次（下回合刷新）
+      if (hasJob(p, 'bank')) {
+        if (p.bankBorrowedThisRound) {
+          showToast('銀行本回合已借貸過，下回合才可再借', 'error');
+          return;
+        }
+        const owe = Math.ceil(amount * 0.5);
+        p.cash += amount;
+        p.debt += owe;
+        p.debtAnchor = (p.debtAnchor || 0) + owe; // 基準＝應還總額（本金的50%）
+        p.bankBorrowedThisRound = true;
+        p.borrowedThisRound += amount;
+        bankFunds -= amount;
+        closeModals();
+        render();
+        showToast(`銀行借款 ${amount}，應還總額 ${owe}（50%）。每回合最低還基準50%直到還清`, 'success');
+        return;
+      }
+
+      // 場上有銀行且不是自己：由銀行決定利息 10%～50%
+      if (bank && bank.id !== p.id) {
+        window._pendingBorrow = { playerId: p.id, amount };
+        closeModals();
+        openBankInterestModal(amount);
+        return;
+      }
+
+      // 無銀行：向遊戲庫借（應還全額；每回合最低為基準50%）
+      p.cash += amount;
+      p.debt += amount;
+      p.debtAnchor = (p.debtAnchor || 0) + amount;
+      p.borrowedThisRound += amount;
+      bankFunds -= amount;
+      closeModals();
+      render();
+      showToast(`已借入 ${amount}。每回合至少還本金 50%；同一回合湊滿 100% 才結清，否則下回合仍要還 50%`, 'success');
+    }
+
+    function openBankInterestModal(amount) {
+      document.getElementById('interestLoanAmount').textContent = amount;
+      document.getElementById('interestRate').value = 20;
+      updateInterestPreview();
+      document.getElementById('bankInterestModal').classList.add('show');
+    }
+    function updateInterestPreview() {
+      const amount = window._pendingBorrow ? window._pendingBorrow.amount : 0;
+      let rate = parseInt(document.getElementById('interestRate').value, 10) || 10;
+      if (rate < 10) rate = 10;
+      if (rate > 50) rate = 50;
+      document.getElementById('interestRate').value = rate;
+      const interest = Math.ceil(amount * rate / 100);
+      document.getElementById('interestPreview').textContent =
+        `利息 ${interest} 元（${rate}%）→ 銀行收入；玩家債務 ${amount + interest}`;
+    }
+    function confirmBankInterest() {
+      if (!window._pendingBorrow) { closeModals(); return; }
+      const { playerId, amount } = window._pendingBorrow;
+      const borrower = room.players.find(pl => pl.id === playerId);
+      const bank = getBankPlayer();
+      let rate = parseInt(document.getElementById('interestRate').value, 10) || 10;
+      if (rate < 10) rate = 10;
+      if (rate > 50) rate = 50;
+      const interest = Math.ceil(amount * rate / 100);
+      if (!borrower) { closeModals(); return; }
+      // 本金從遊戲庫出，利息進銀行；債務基準＝本金+利息（每回合至少還基準50%）
+      borrower.cash += amount;
+      borrower.debt += amount + interest;
+      borrower.debtAnchor = (borrower.debtAnchor || 0) + amount + interest;
+      borrower.borrowedThisRound = (borrower.borrowedThisRound || 0) + amount;
+      bankFunds -= amount;
+      if (bank) {
+        if (bank.id === myId) pendingJobIncome += interest;
+        else bank.cash += interest;
+      }
+      window._pendingBorrow = null;
+      closeModals();
+      render();
+      showToast(`借款 ${amount} 成功，利息 ${interest}（${rate}%）已給銀行`, 'success');
+    }
+
+    function confirmRepay() {
+      const p = me();
+      let amount = readQty('repayAmount');
+      if (!p.debtAnchor || p.debtAnchor < (p.debt || 0)) p.debtAnchor = p.debt || 0;
+      const full = p.debtAnchor;
+      const already = p.repaidThisTurn || 0;
+      const remainTo100 = Math.max(0, full - already);
+      const minPay = minRepayAmount(p);
+      if (full <= 0) { showToast('沒有債務', 'error'); return; }
+      if (amount < minPay) { showToast(`本筆至少須還 ${minPay}`, 'error'); return; }
+      if (amount > remainTo100) { showToast(`本回合最多再付 ${remainTo100}（湊滿本金即可結清）`, 'error'); return; }
+      if (p.cash < amount) { showToast('現金不足', 'error'); return; }
+
+      p.cash -= amount;
+      bankFunds += amount;
+      p.repaidThisTurn = already + amount;
+      const need50 = Math.ceil(full * 0.5);
+
+      // 同一回合累計達本金 100% → 結清債務
+      if (p.repaidThisTurn >= full) {
+        p.debt = 0;
+        p.debtAnchor = 0;
+        p.repaidThisTurn = 0;
+        p.debtAtTurnStart = 0;
+        mustRepayThisTurn = false;
+        closeModals();
+        render();
+        showToast(`已湊滿 ${full}（100%），債務結清`, 'success');
+        return;
+      }
+
+      // 未滿 100%：本金不變（debt 仍為 full），僅累計本回合已付
+      p.debt = full;
+      p.debtAnchor = full;
+      if (p.repaidThisTurn >= need50) {
+        mustRepayThisTurn = false;
+      }
+      closeModals();
+      render();
+      const left50 = Math.max(0, need50 - p.repaidThisTurn);
+      const left100 = full - p.repaidThisTurn;
+      if (left50 > 0) {
+        showToast(`本回合已付 ${p.repaidThisTurn}。還需至少 ${left50} 才可過關；本金仍為 ${full}（可再補 ${left100} 結清）`, 'success');
+      } else {
+        showToast(`本回合已付 ${p.repaidThisTurn}（門檻已達）。本金仍為 ${full}，再補 ${left100} 可結清；否則下回合仍要還 50%`, 'success');
+      }
+    }
+
+    function playCards() {
+      if (phase !== 'fluctuate') {
+        showToast('現在不是波動出牌階段', 'error');
+        return;
+      }
+      if (hasPlayedThisPhase) {
+        showToast('本階段已出過牌，不能再出（一次下手）', 'error');
+        return;
+      }
+
+      const p = me();
+      const n = neighbor();
+      const mine = selectedCards.filter(s => s.from === 'mine');
+      const neigh = selectedCards.filter(s => s.from === 'neighbor');
+      const priv = selectedCards.filter(s => s.from === 'private');
+
+      if (p.cards.length === 0) {
+        document.getElementById('refillModal').classList.add('show');
+        return;
+      }
+
+      if (mine.length !== 1 || neigh.length !== 1) {
+        showToast('必須從自己與隔壁公開組各選 1 張（選好再下手）', 'error');
+        return;
+      }
+      if (!p.cards[mine[0].index] || !n.cards[neigh[0].index]) {
+        showToast('選取的牌已不存在，請重新選擇', 'error');
+        selectedCards = [];
+        render();
+        return;
+      }
+
+      const c1 = p.cards[mine[0].index];
+      const c2 = n.cards[neigh[0].index];
+      applyCard(c1);
+      applyCard(c2);
+      // 私有牌可一併打出（算在這一次下手裡）
+      const privCards = [];
+      priv.forEach(s => { if (p.privateCards[s.index]) { applyCard(p.privateCards[s.index]); privCards.push(p.privateCards[s.index]); } });
+
+      // 打出後回收進牌庫
+      returnCardToDeck(c1);
+      returnCardToDeck(c2);
+      privCards.forEach(returnCardToDeck);
+
+      // 職業收費：地主、牌王（在移除牌之前計算）
+      const playedAll = [c1, c2, ...privCards];
+      const sumVal = playedAll.reduce((s, c) => s + (c.value || 0), 0);
+      let feeNotes = [];
+      const landlord = getJobPlayer('landlord');
+      if (landlord && landlord.id !== p.id) {
+        const fee = (sumVal === 0) ? 100 : Math.abs(sumVal) * 100;
+        if (p.id === myId) jobFeesPaid += fee;
+        else p.cash -= fee;
+        if (landlord.id === myId) pendingJobIncome += fee;
+        else landlord.cash += fee;
+        feeNotes.push(`地主 ${fee}`);
+      }
+      const cardKing = getJobPlayer('card_king');
+      if (cardKing && cardKing.id !== p.id) {
+        const fee = playedAll.length * 100;
+        if (p.id === myId) jobFeesPaid += fee;
+        else p.cash -= fee;
+        if (cardKing.id === myId) pendingJobIncome += fee;
+        else cardKing.cash += fee;
+        feeNotes.push(`牌王 ${fee}`);
+      }
+
+      mine.map(s => s.index).sort((a,b)=>b-a).forEach(i => p.cards.splice(i, 1));
+      neigh.map(s => s.index).sort((a,b)=>b-a).forEach(i => n.cards.splice(i, 1));
+      priv.map(s => s.index).sort((a,b)=>b-a).forEach(i => p.privateCards.splice(i, 1));
+
+      hasPlayedThisPhase = true; // 本階段不能再出
+      selectedCards = [];
+      render();
+      showToast('出牌完成' + (feeNotes.length ? `（支付：${feeNotes.join('、')}）` : '') + ' → 自動結束本階段', 'success');
+      checkWin();
+
+      // 出牌後自動結束波動階段，進入下一回合買貨（換下一位流程）
+      const needRefill = p.cards.length === 0;
+      setTimeout(() => {
+        if (needRefill) {
+          document.getElementById('refillModal').classList.add('show');
+          // 補牌後仍可由玩家手動結束；若直接關閉則下面再自動結束
+          window._autoEndAfterRefill = true;
+        } else {
+          endPhase();
+        }
+      }, 550);
+    }
+
+    function applyCard(card) {
+      const g = GOODS.find(x => x.id === card.good);
+      if (!g) return;
+      // 以格為準：+2 就前進 2 格，-2 就退 2 格
+      let grid = priceToGrid(g.price);
+      grid = Math.max(0, Math.min(GRID_MAX, grid + card.value));
+      g.price = gridToPrice(grid);
+    }
+
+    function refillCards() {
+      const p = me();
+      const n = neighbor();
+      while (p.cards.length < 8) {
+        const card = drawRandomFromDeck();
+        if (!card) break;
+        p.cards.push(card);
+      }
+      while (n.cards.length < 8) {
+        const card = drawRandomFromDeck();
+        if (!card) break;
+        n.cards.push(card);
+      }
+      closeModals();
+      render();
+      showToast(`已從牌庫補牌（牌庫剩 ${totalDeckLeft()} 張）`, 'success');
+      if (window._autoEndAfterRefill) {
+        window._autoEndAfterRefill = false;
+        setTimeout(() => endPhase(), 400);
+      }
+    }
+
+    function returnCardToDeck(card) {
+      if (!card) return;
+      const key = deckKey(card.good, card.value);
+      if (deckStock[key] !== undefined) deckStock[key] += 1;
+      else deckStock[key] = 1;
+    }
+
+    function endGameSettle() {
+      closeModals();
+      const ranked = [...room.players]
+        .map(pl => ({ name: pl.name, total: totalAssets(pl), cash: pl.cash, hold: holdValue(pl), debt: pl.debt }))
+        .sort((a, b) => b.total - a.total);
+      let html = '';
+      ranked.forEach((r, i) => {
+        const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}.`;
+        html += `<div style="margin:8px 0;padding:8px;background:rgba(0,0,0,0.06);border-radius:6px;">
+          <strong>${medal} ${r.name}</strong><br>
+          總資產 ${r.total}（現金 ${r.cash} + 持倉 ${r.hold}）債務 ${r.debt}
+        </div>`;
+      });
+      html += `<p style="margin-top:10px;font-size:0.85rem;">遊戲庫資金：${bankFunds}</p>`;
+      document.getElementById('settleList').innerHTML = html;
+      document.getElementById('settleModal').classList.add('show');
+    }
+
+    let pickGoodId = null;
+    let pickValue = null;
+
+    function refreshPickValueGrid() {
+      document.getElementById('pickValueGrid').innerHTML = CARD_VALUES.map(v => {
+        const left = pickGoodId ? deckRemain(pickGoodId, v) : '-';
+        const disabled = pickGoodId && left <= 0;
+        return `<div class="pick-card ${v>0?'plus':'minus'} ${disabled?'':' '}" 
+          data-val="${v}" 
+          style="${disabled ? 'opacity:0.35;pointer-events:none;' : ''}"
+          onclick="selectPickValue(${v})">
+          ${v>0?'+':''}${v}
+          <div class="pg">剩 ${left}</div>
+        </div>`;
+      }).join('');
+      if (pickValue !== null) {
+        document.querySelectorAll('#pickValueGrid .pick-card').forEach(el => {
+          el.classList.toggle('selected', parseInt(el.dataset.val) === pickValue);
+        });
+      }
+    }
+
+    function buyCardFromDeck() {
+      const p = me();
+      const price = cardBuyPriceFor(p);
+      if (p.cash < price) { showToast(`現金不足 ${price}`, 'error'); return; }
+      if (totalDeckLeft() <= 0) { showToast('牌庫已空', 'error'); return; }
+      pickGoodId = null;
+      pickValue = null;
+      document.getElementById('deckTotalLeft').textContent = totalDeckLeft();
+      document.getElementById('pickGoodGrid').innerHTML = GOODS.map(g => {
+        // 該貨物所有點數剩餘加總
+        const sum = CARD_VALUES.reduce((a, v) => a + deckRemain(g.id, v), 0);
+        return `<div class="pick-card" data-gid="${g.id}" onclick="selectPickGood('${g.id}')"
+          style="${sum<=0?'opacity:0.35;pointer-events:none;':''}">
+          ${g.icon}<div class="pg">${g.name}（${sum}）</div>
+        </div>`;
+      }).join('');
+      refreshPickValueGrid();
+      document.getElementById('pickSummary').textContent = '尚未選擇';
+      document.getElementById('buyCardModal').classList.add('show');
+    }
+
+    function selectPickGood(id) {
+      pickGoodId = id;
+      pickValue = null;
+      document.querySelectorAll('#pickGoodGrid .pick-card').forEach(el => {
+        el.classList.toggle('selected', el.dataset.gid === id);
+      });
+      refreshPickValueGrid();
+      updatePickSummary();
+    }
+    function selectPickValue(v) {
+      if (!pickGoodId) { showToast('請先選擇貨物', 'error'); return; }
+      if (deckRemain(pickGoodId, v) <= 0) { showToast('此牌已無庫存', 'error'); return; }
+      pickValue = v;
+      document.querySelectorAll('#pickValueGrid .pick-card').forEach(el => {
+        el.classList.toggle('selected', parseInt(el.dataset.val) === v);
+      });
+      updatePickSummary();
+    }
+    function updatePickSummary() {
+      const g = GOODS.find(x => x.id === pickGoodId);
+      if (g && pickValue !== null) {
+        const left = deckRemain(g.id, pickValue);
+        document.getElementById('pickSummary').textContent =
+          `${g.icon} ${g.name}　${pickValue > 0 ? '+' : ''}${pickValue}（剩 ${left}）`;
+      } else if (g) {
+        document.getElementById('pickSummary').textContent = `${g.icon} ${g.name}　（請選點數）`;
+      } else {
+        document.getElementById('pickSummary').textContent = '尚未選擇';
+      }
+    }
+    function confirmBuyCard() {
+      if (!pickGoodId || pickValue === null) {
+        showToast('請選擇貨物與點數', 'error');
+        return;
+      }
+      if (deckRemain(pickGoodId, pickValue) <= 0) {
+        showToast('此牌已無庫存', 'error');
+        return;
+      }
+      const p = me();
+      const price = cardBuyPriceFor(p);
+      if (p.cash < price) { showToast(`現金不足 ${price}`, 'error'); return; }
+      const g = GOODS.find(x => x.id === pickGoodId);
+      deckStock[deckKey(pickGoodId, pickValue)] -= 1;
+      p.cash -= price;
+      bankFunds += price;
+      p.privateCards.push({ good: g.id, goodName: g.name, value: pickValue });
+      p.boughtCardThisRound = true;
+      if (hasJob(p, 'card_king')) {
+        p.cardSpendThisRound = (p.cardSpendThisRound || 0) + price;
+      }
+      closeModals();
+      render();
+      showToast(`已購買 ${g.name} ${pickValue > 0 ? '+' : ''}${pickValue}（${price}元，牌庫剩 ${totalDeckLeft()}）`, 'success');
+    }
+
+    function endPhase(fromRefillModal) {
+      const p = me();
+      if (mustRepayThisTurn && p.debt > 0) {
+        showToast('請先完成最低還款，才能結束本階段', 'error');
+        openRepayModal();
+        return;
+      }
+      // 波動階段：必須先出公開牌（私有購買牌不算完成出牌）
+      if (phase === 'fluctuate' && !hasPlayedThisPhase) {
+        showToast('波動階段須先出牌（自己＋隔壁公開組各 1 張）才能結束', 'error');
+        return;
+      }
+
+      if (phase === 'buy') {
+        // 買貨階段結束：職業收成 − 職業抽成 → 入現金（可為負則扣現金）；兩者歸零
+        const income = pendingJobIncome;
+        const fees = jobFeesPaid;
+        const net = income - fees;
+        pendingJobIncome = 0;
+        jobFeesPaid = 0;
+        if (income > 0 || fees > 0) {
+          p.cash += net;
+          if (net > 0) {
+            showToast(`職業結算入帳 +${net}（收成 ${income} − 抽成 ${fees}）`, 'success');
+          } else if (net < 0) {
+            showToast(`職業結算扣款 ${net}（收成 ${income} − 抽成 ${fees}）`, 'error');
+          } else {
+            showToast(`職業結算 ±0（收成 ${income} − 抽成 ${fees}）`, 'success');
+          }
+        }
+        phase = 'fluctuate';
+        hasPlayedThisPhase = false;
+        selectedCards = [];
+        showToast('進入波動出牌階段（須出牌後才能結束）', 'success');
+      } else if (phase === 'fluctuate') {
+        // 新回合：若未結清本金，本回合付款進度歸零，下回合仍須再付 50%
+        if ((p.debtAnchor || 0) > 0 || (p.debt || 0) > 0) {
+          if (!p.debtAnchor || p.debtAnchor < p.debt) p.debtAnchor = p.debt;
+          p.debt = p.debtAnchor;
+          mustRepayThisTurn = true;
+          p.debtAtTurnStart = p.debtAnchor;
+          p.repaidThisTurn = 0;
+        } else {
+          mustRepayThisTurn = false;
+          p.debtAtTurnStart = 0;
+          p.repaidThisTurn = 0;
+        }
+        round++;
+        phase = 'buy';
+        hasPlayedThisPhase = false;
+        selectedCards = [];
+        resetRightsFees();
+        showToast(`第 ${round} 回合開始`, 'success');
+        if (round >= 2) showBuyRoundBanner();
+      }
+      render();
+    }
+
+    function checkWin() {
+      room.players.forEach(pl => {
+        const net = totalAssets(pl); // 已扣除債務
+        if (net >= 10000) {
+          showToast(`🎉 ${pl.name} 淨總資產達到 ${net}（已扣債務），獲勝！`, 'success');
+        }
+      });
+    }
+
+    function showPlayerHoldings(pid) {
+      const pl = room.players.find(p => p.id === pid);
+      if (!pl) return;
+      const isMe = pl.id === myId;
+      ensureJobs(pl);
+      const jobIcon = (pl.jobs || []).map(id => { const j = JOBS.find(x => x.id === id); return j ? j.icon : ''; }).filter(Boolean).join('') || '🧑‍✈️';
+      const net = totalAssets(pl);
+      const hv = holdValue(pl);
+      document.getElementById('holdingsTitle').textContent = isMe ? '我的個人簡介' : `${pl.name} · 個人簡介`;
+
+      const titleDef = getEquippedTitleDef(pl);
+      let html = `
+        ${titleDef ? `<div class="profile-title-banner"><img class="pt-img" src="${titleDef.banner}" alt="" /><div class="pt-shade"></div><span class="pt-text">${titleDef.name}</span></div>` : ''}
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;padding:12px;background:rgba(61,36,20,0.08);border-radius:12px;border:1px solid rgba(201,162,39,0.35);">
+          <div style="width:52px;height:52px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#2a4a6a,#0d2137);border:2px solid #c9a227;display:flex;align-items:center;justify-content:center;font-size:1.6rem;">${jobIcon}</div>
+          <div>
+            <div style="font-weight:800;font-size:1.1rem;color:#3d2414;">${pl.name}${isMe ? '（你）' : ''}${pl.isHost ? ' · 房主' : ''}</div>
+            <div style="font-size:0.85rem;color:#5a3a22;margin-top:2px;">${ensureJobs(pl).length ? jobIcon + ' ' + pl.jobTitle : '尚未選擇職業'}${ensureJobs(pl).length ? '　價值 ' + jobValueOf(pl) : ''}</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+          <div style="background:rgba(45,106,79,0.12);border-radius:10px;padding:10px;border:1px solid rgba(45,106,79,0.25);">
+            <div style="font-size:0.72rem;color:#5a3a22;">現金</div>
+            <div style="font-family:Cinzel,serif;font-weight:800;font-size:1.15rem;color:#2d6a4f;">${pl.cash}</div>
+          </div>
+          <div style="background:rgba(155,34,38,0.1);border-radius:10px;padding:10px;border:1px solid rgba(155,34,38,0.2);">
+            <div style="font-size:0.72rem;color:#5a3a22;">債務</div>
+            <div style="font-family:Cinzel,serif;font-weight:800;font-size:1.15rem;color:#9b2226;">${pl.debt || 0}</div>
+          </div>
+          <div style="background:rgba(201,162,39,0.12);border-radius:10px;padding:10px;border:1px solid rgba(201,162,39,0.3);">
+            <div style="font-size:0.72rem;color:#5a3a22;">持倉市值</div>
+            <div style="font-family:Cinzel,serif;font-weight:800;font-size:1.15rem;color:#8a6e16;">${hv}</div>
+          </div>
+          <div style="background:rgba(26,79,138,0.1);border-radius:10px;padding:10px;border:1px solid rgba(26,79,138,0.25);">
+            <div style="font-size:0.72rem;color:#5a3a22;">淨總資產</div>
+            <div style="font-family:Cinzel,serif;font-weight:800;font-size:1.15rem;color:#1a4f8a;">${net}</div>
+          </div>
+        </div>
+      `;
+
+      const rights = GOODS.filter(g => goodsRights[g.id] === pl.id);
+      const rv = hasJob(pl, 'rights_master') ? rightsMasterJobValue() : rightsAssetValue(pl.id);
+      html += `<div style="margin:10px 0 6px;font-weight:700;color:#3d2414;border-bottom:1px solid rgba(201,162,39,0.35);padding-bottom:4px;">📦 物權庫${rights.length || hasJob(pl, 'rights_master') ? '（價值 ' + rv + '）' : ''}</div>`;
+      if (rights.length) {
+        rights.forEach(g => {
+          html += `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:0.9rem;border-bottom:1px solid rgba(0,0,0,0.05);">
+            <span>${g.icon} ${g.name}</span>
+            <span style="color:#1a4f8a;font-weight:700;">價值 ${rightUnitValue(g)}</span>
+          </div>`;
+        });
+      } else if (hasJob(pl, 'rights_master')) {
+        html += `<p style="font-size:0.85rem;color:#5a3a22;">🐳 物權主宰特權生效（六種貨物皆享收租）</p>`;
+      } else {
+        html += `<p style="font-size:0.85rem;color:#8a6e4a;">尚無物權</p>`;
+      }
+
+      html += `<div style="margin:14px 0 6px;font-weight:700;color:#3d2414;border-bottom:1px solid rgba(201,162,39,0.35);padding-bottom:4px;">📦 貨艙持倉</div>`;
+      let any = false;
+      GOODS.forEach(g => {
+        const qty = pl.holdings[g.id] || 0;
+        if (qty > 0) {
+          any = true;
+          const val = qty * g.price;
+          html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(0,0,0,0.06);">
+            <span style="font-weight:600;">${g.icon} ${g.name} × <strong>${qty}</strong></span>
+            <span style="font-size:0.85rem;color:#5a3a22;">市價 ${g.price}　小計 <strong>${val}</strong></span>
+          </div>`;
+        }
+      });
+      if (!any) html += `<p style="color:#8a6e4a;font-size:0.9rem;">目前沒有持有任何貨物</p>`;
+
+      if (isMe) {
+        html += `<div style="margin-top:14px;padding:10px;background:rgba(201,162,39,0.1);border-radius:10px;font-size:0.8rem;color:#5a3a22;line-height:1.5;">
+          💡 淨總資產 = 現金 + 持倉市值 − 債務。達到 <strong>10000</strong> 即可獲勝。職業收成於買貨階段結束時入帳。
+        </div>`;
+      }
+
+      document.getElementById('holdingsList').innerHTML = html;
+      document.getElementById('holdingsModal').classList.add('show');
+    }
+
+    let pendingJobId = null;
+    function openJobModal() {
+      const p = me();
+      ensureJobs(p);
+      pendingJobId = null;
+      const owned = ensureJobs(p).map(id => {
+        const j = JOBS.find(x => x.id === id);
+        return j ? (j.icon + ' ' + j.title) : id;
+      }).join('、');
+      document.getElementById('currentJobLabel').textContent = owned
+        ? `${owned}（合計價值 ${jobValueOf(p)}）`
+        : '尚未選擇（可同時擁有多個職業）';
+
+      let sellHtml = '';
+      ensureJobs(p).forEach(jid => {
+        const curJob = JOBS.find(j => j.id === jid);
+        if (!curJob) return;
+        if (curJob.sellPrice > 0) {
+          sellHtml += `<div style="grid-column:1/-1;margin-bottom:8px;">
+            <button class="btn-red" style="width:100%;padding:16px 14px;font-size:1.08rem;border-radius:14px;font-weight:800;letter-spacing:0.04em;box-shadow:0 4px 0 #6b1a1a;" onclick="sellJob('${curJob.id}')">賣掉「${curJob.title}」　回收 ${curJob.sellPrice}</button>
+          </div>`;
+        } else if (curJob.id === 'rights_master') {
+          sellHtml += `<div style="grid-column:1/-1;margin-bottom:8px;">
+            <button class="btn-red" style="width:100%;padding:16px 14px;font-size:1.08rem;border-radius:14px;font-weight:800;" onclick="sellJob('rights_master')">放棄物權主宰職業</button>
+          </div>`;
+        }
+      });
+
+      document.getElementById('jobPickGrid').innerHTML = sellHtml + JOBS.map(j => {
+        const taken = isJobTaken(j.id, p.id);
+        const takenBy = getJobPlayer(j.id);
+        const mine = hasJob(p, j.id);
+        const selected = pendingJobId === j.id;
+        const soon = !!j.comingSoon;
+        const disabled = soon || (taken && !mine);
+        const status = soon
+          ? '敬請期待'
+          : (mine ? '✓ 你已擁有' : (disabled ? `已被「${takenBy ? takenBy.name : '?'}」選走` : (j.cost ? `就任費用 ${j.cost}` : '條件就任')));
+        return `<div onclick="${disabled || mine ? '' : `pickJob('${j.id}')`}" id="jobpick-${j.id}"
+          style="border:2px solid ${selected&&!soon?'#c9a227':(mine?'#2d6a4f':'#8b5e3c')};border-radius:12px;padding:14px 10px;text-align:center;cursor:${disabled||mine?'not-allowed':'pointer'};background:${soon?'rgba(0,0,0,0.12)':(mine?'rgba(45,106,79,0.2)':(selected?'rgba(201,162,39,0.25)':'rgba(255,255,255,0.35)'))};opacity:${soon?0.42:(disabled?0.45:1)};filter:${soon?'grayscale(0.7)':''};">
+          <div style="font-size:2.4rem;line-height:1.2;margin-bottom:6px;">${j.icon}</div>
+          <div style="font-weight:700;font-size:1rem;">${j.title}</div>
+          <div style="font-size:0.75rem;color:#5a3a22;margin-top:4px;">${j.desc}</div>
+          <div style="font-size:0.75rem;margin-top:6px;color:${soon?'#8a6e4a':'#3d2414'};font-weight:${soon||mine?700:400};">
+            ${status}
+          </div>
+        </div>`;
+      }).join('');
+      document.getElementById('jobModal').classList.add('show');
+    }
+    function pickJob(id) {
+      const p = me();
+      const job0 = JOBS.find(j => j.id === id);
+      if (job0 && job0.comingSoon) {
+        showToast('此職業敬請期待', 'error');
+        return;
+      }
+      if (isJobTaken(id, p.id)) {
+        showToast('此職業已被其他玩家選走，需等對方賣出', 'error');
+        return;
+      }
+      pendingJobId = id;
+      JOBS.forEach(j => {
+        const el = document.getElementById('jobpick-' + j.id);
+        if (!el) return;
+        const on = j.id === id;
+        el.style.borderColor = on ? '#c9a227' : '#8b5e3c';
+        el.style.background = on ? 'rgba(201,162,39,0.25)' : 'rgba(255,255,255,0.35)';
+      });
+      const job = JOBS.find(j => j.id === id);
+      document.getElementById('currentJobLabel').textContent = job ? (job.icon + ' ' + job.title) : '尚未選擇';
+    }
+    function confirmJob() {
+      if (!pendingJobId) { showToast('請選擇一個職業', 'error'); return; }
+      const p = me();
+      const job = JOBS.find(j => j.id === pendingJobId);
+      if (!job) { showToast('職業不存在', 'error'); return; }
+      if (job.comingSoon) { showToast('此職業敬請期待', 'error'); return; }
+      if (isJobTaken(job.id, p.id)) {
+        showToast('此職業已被選走，不可重複', 'error');
+        return;
+      }
+      ensureJobs(p);
+      if (hasJob(p, job.id)) {
+        showToast('你已擁有此職業', 'error');
+        return;
+      }
+      if (job.cost && job.cost > 0) {
+        const cost = job.cost;
+        if (p.cash < cost) { showToast(`就任「${job.title}」需支付 ${cost} 元`, 'error'); return; }
+        p.cash -= cost;
+        bankFunds += cost;
+      }
+      if (job.id === 'rights_master') {
+        const need = job.needRights || 4;
+        const cnt = countRights(p.id);
+        if (cnt < need) {
+          showToast(`需持有至少 ${need} 個物權（目前 ${cnt}）`, 'error');
+          return;
+        }
+      }
+      p.jobs.push(job.id);
+      ensureJobs(p);
+      closeModals();
+      render();
+      if (typeof syncPush === 'function') syncPush();
+      showToast(`已就任「${job.title}」（可再選其他職業）`, 'success');
+    }
+
+    function sellJob(jobId) {
+      const p = me();
+      ensureJobs(p);
+      if (!p.jobs.length) { showToast('你沒有職業可賣', 'error'); return; }
+      if (!jobId) jobId = p.jobs[0];
+      if (!hasJob(p, jobId)) { showToast('你沒有此職業', 'error'); return; }
+      const job = JOBS.find(j => j.id === jobId);
+      if (job && job.sellPrice && job.sellPrice > 0) {
+        const price = job.sellPrice;
+        p.cash += price;
+        bankFunds -= price;
+        p.jobs = p.jobs.filter(id => id !== jobId);
+        ensureJobs(p);
+        closeModals();
+        render();
+        if (typeof syncPush === 'function') syncPush();
+        showToast(`已賣掉「${job.title}」，獲得 ${price} 元（職業已釋出）`, 'success');
+        return;
+      }
+      if (jobId === 'rights_master') {
+        p.jobs = p.jobs.filter(id => id !== 'rights_master');
+        ensureJobs(p);
+        closeModals();
+        render();
+        if (typeof syncPush === 'function') syncPush();
+        showToast('已放棄物權主宰（職業已釋出）', 'success');
+        return;
+      }
+      p.jobs = p.jobs.filter(id => id !== jobId);
+      ensureJobs(p);
+      closeModals();
+      render();
+      if (typeof syncPush === 'function') syncPush();
+      showToast('已放棄職業', 'success');
+    }
+
+
+
+    // ===== 聯機同步 =====
+
+    // ===== 開場等待與輪盤決定順序 =====
+    function isOnlineMode() {
+      return localStorage.getItem('onlineMode') === '1' && window.GameNet;
+    }
+    function allPlayersReady() {
+      const ids = (room.players || []).map(p => p.id);
+      if (!ids.length) return false;
+      return ids.every(id => readyPlayers[id]);
+    }
+    function showCinema(title, sub, opts) {
+      const mask = document.getElementById('cinemaMask');
+      const tEl = document.getElementById('cinemaTitle');
+      const sEl = document.getElementById('cinemaSub');
+      mask.classList.add('show');
+      tEl.textContent = title || '';
+      sEl.textContent = sub || '';
+      // restart animation
+      tEl.classList.remove('show'); sEl.classList.remove('show');
+      requestAnimationFrame(() => {
+        tEl.classList.add('show');
+        if (sub) sEl.classList.add('show');
+      });
+      const rw = document.getElementById('rouletteWrap');
+      const act = document.getElementById('cinemaActions');
+      if (opts && opts.roulette) {
+        rw.style.display = '';
+        buildRoulette();
+      } else {
+        rw.style.display = 'none';
+      }
+      if (opts && opts.actionsHtml) {
+        act.style.display = 'flex';
+        act.innerHTML = opts.actionsHtml;
+      } else {
+        act.style.display = 'none';
+        act.innerHTML = '';
+      }
+    }
+    function hideCinema() {
+      document.getElementById('cinemaMask').classList.remove('show');
+    }
+    function buildRoulette() {
+      const labels = document.getElementById('rouletteLabels');
+      const players = room.players || [];
+      const n = Math.max(players.length, 1);
+      labels.innerHTML = players.map((pl, i) => {
+        const ang = (360 / n) * i;
+        return `<span style="transform: rotate(${ang}deg) translateY(-104px) rotate(-${ang}deg);">${pl.name}</span>`;
+      }).join('');
+      document.getElementById('rouletteCenter').textContent = '抽取';
+      document.getElementById('rouletteWheel').style.transform = 'rotate(0deg)';
+    }
+    function spinRouletteTo(playerId) {
+      const players = room.players || [];
+      const n = players.length;
+      const idx = Math.max(0, players.findIndex(p => p.id === playerId));
+      // 指針在上方；扇形中心對準指針
+      const slice = 360 / n;
+      const targetCenter = idx * slice;
+      const spins = 5;
+      const finalDeg = spins * 360 + (360 - targetCenter);
+      const wheel = document.getElementById('rouletteWheel');
+      wheel.style.transition = 'none';
+      wheel.style.transform = 'rotate(0deg)';
+      void wheel.offsetWidth;
+      wheel.style.transition = 'transform 4s cubic-bezier(0.15, 0.85, 0.25, 1)';
+      wheel.style.transform = `rotate(${finalDeg}deg)`;
+      document.getElementById('rouletteCenter').textContent = (players[idx] && players[idx].name) || '?';
+    }
+    function buildOrderFromFirst(firstId, dir) {
+      const ids = (room.players || []).map(p => p.id);
+      if (!ids.length) return [];
+      let i = ids.indexOf(firstId);
+      if (i < 0) i = 0;
+      const order = [];
+      for (let k = 0; k < ids.length; k++) {
+        order.push(ids[i]);
+        i = dir === 'ccw' ? (i - 1 + ids.length) % ids.length : (i + 1) % ids.length;
+      }
+      return order;
+    }
+    function applyTurnSetup(firstId, dir) {
+      firstPlayerId = firstId;
+      turnDir = dir || 'cw';
+      turnOrder = buildOrderFromFirst(firstId, turnDir);
+      // 依 turnOrder 重排 room.players，讓隔壁共享符合順序
+      const map = {};
+      room.players.forEach(p => { map[p.id] = p; });
+      room.players = turnOrder.map(id => map[id]).filter(Boolean);
+      setupDone = true;
+      phase = 'buy';
+      hideCinema();
+      render();
+      syncPush();
+      const names = turnOrder.map(id => {
+        const pl = room.players.find(p => p.id === id);
+        return pl ? pl.name : id;
+      }).join(' → ');
+      showToast(`行動順序：${names}（${turnDir === 'cw' ? '順時針' : '逆時針'}）`, 'success');
+    }
+    function hostRunOrderSequence() {
+      // 僅房主執行動畫節奏並廣播（進入時已全員就緒並等待過 2 秒）
+      const players = room.players || [];
+      if (!players.length) return;
+      showCinema('抽取隨機玩家順序', '即將轉動輪盤決定第一位…');
+      if (isOnlineMode()) {
+        GameNet.sendEvent('order_announce', {});
+      }
+      setTimeout(() => {
+        const pick = players[Math.floor(Math.random() * players.length)].id;
+        firstPlayerId = pick;
+        const name = (players.find(p => p.id === pick) || {}).name || '玩家';
+        showCinema('輪盤轉動中', '指針停下的那位即為第一位', { roulette: true });
+        requestAnimationFrame(() => spinRouletteTo(pick));
+        if (isOnlineMode()) {
+          GameNet.sendEvent('order_spin', { firstId: pick });
+        }
+        setTimeout(() => {
+          showCinema('第一位：' + name, '請選擇回合方向', {
+            actionsHtml:
+              '<button class="cw" onclick="chooseTurnDir(\'cw\')">順時針 ↻</button>' +
+              '<button class="ccw" onclick="chooseTurnDir(\'ccw\')">逆時針 ↺</button>'
+          });
+          if (isOnlineMode()) {
+            GameNet.sendEvent('order_first', { firstId: pick, name: name });
+          }
+        }, 4200);
+      }, 2000);
+    }
+    function chooseTurnDir(dir) {
+      // 房主選擇方向
+      if (isOnlineMode()) {
+        const meP = me();
+        const isHost = meP && (meP.isHost || meP.id === (room.hostId || 1));
+        if (!isHost) {
+          showToast('等待房主選擇方向', 'error');
+          return;
+        }
+        GameNet.sendEvent('order_dir', { firstId: firstPlayerId, dir });
+      }
+      applyTurnSetup(firstPlayerId, dir);
+    }
+    function showBuyRoundBanner() {
+      const el = document.getElementById('buyRoundBanner');
+      if (!el) return;
+      el.classList.remove('show');
+      void el.offsetWidth;
+      el.classList.add('show');
+      // 重組第二回合起的買回合順序：依上一輪結果或重新以第一位為基準
+      if (turnOrder.length && room.players) {
+        // 買回合：可依總資產高到低重排操作提示（不強制改共享隔壁）
+        // 這裡僅大字提示，順序維持 turnOrder
+      }
+      setTimeout(() => el.classList.remove('show'), 2200);
+    }
+    function beginSetupFlow() {
+      if (setupDone) return;
+      phase = 'setup';
+      const online = isOnlineMode();
+      if (!online) {
+        // 本機測試：視作全員就緒，2 秒後開抽
+        (room.players || []).forEach(p => { readyPlayers[p.id] = true; });
+        showCinema('等待玩家載入中…', '本機測試模式');
+        setTimeout(() => hostRunOrderSequence(), 2000);
+        return;
+      }
+      showCinema('等待玩家載入中…', '請稍候，確認每位船員都已上船');
+      readyPlayers[myId] = true;
+      GameNet.sendEvent('player_ready', { playerId: myId });
+      // 房主檢查
+      const check = () => {
+        if (setupDone) return;
+        if (!allPlayersReady()) return;
+        const meP = me();
+        const isHost = meP && (meP.isHost || meP.id === (room.hostId || 1));
+        if (isHost) {
+          setTimeout(() => hostRunOrderSequence(), 2000);
+        }
+      };
+      setTimeout(check, 500);
+      // 定期再檢查
+      let tries = 0;
+      const iv = setInterval(() => {
+        if (setupDone || ++tries > 40) { clearInterval(iv); return; }
+        check();
+      }, 500);
+    }
+
+
+    function exportGameState() {
+      return {
+        players: JSON.parse(JSON.stringify(room.players)),
+        goods: GOODS.map(g => ({ id: g.id, price: g.price, stock: g.stock })),
+        deckStock: Object.assign({}, deckStock),
+        goodsRights: Object.assign({}, goodsRights),
+        round: round,
+        phase: phase,
+        bankFunds: bankFunds,
+        rightsSoldThisRound: typeof rightsSoldThisRound !== 'undefined' ? rightsSoldThisRound : 0,
+        pendingJobIncome: typeof pendingJobIncome !== 'undefined' ? pendingJobIncome : 0,
+        jobFeesPaid: typeof jobFeesPaid !== 'undefined' ? jobFeesPaid : 0,
+        mustRepayThisTurn: mustRepayThisTurn,
+        hasPlayedThisPhase: hasPlayedThisPhase,
+        turnOrder: turnOrder,
+        turnDir: turnDir,
+        setupDone: setupDone,
+        firstPlayerId: firstPlayerId,
+        ts: Date.now()
+      };
+    }
+    let _applyingNet = false;
+    let _lastNetTs = 0;
+    function importGameState(state) {
+      if (!state || _applyingNet) return;
+      if (state.ts && state.ts <= _lastNetTs) return;
+      _applyingNet = true;
+      try {
+        if (state.ts) _lastNetTs = state.ts;
+        if (state.players) room.players = state.players;
+        if (state.goods) {
+          state.goods.forEach(sg => {
+            const g = GOODS.find(x => x.id === sg.id);
+            if (g) { g.price = sg.price; g.stock = sg.stock; }
+          });
+        }
+        if (state.deckStock) {
+          Object.keys(deckStock).forEach(k => delete deckStock[k]);
+          Object.assign(deckStock, state.deckStock);
+        }
+        if (state.goodsRights) {
+          Object.keys(goodsRights).forEach(k => goodsRights[k] = state.goodsRights[k] ?? null);
+        }
+        if (state.round != null) round = state.round;
+        if (state.phase) phase = state.phase;
+        if (state.bankFunds != null) bankFunds = state.bankFunds;
+        if (state.rightsSoldThisRound != null) rightsSoldThisRound = state.rightsSoldThisRound;
+        if (state.mustRepayThisTurn != null) mustRepayThisTurn = state.mustRepayThisTurn;
+        if (state.hasPlayedThisPhase != null) hasPlayedThisPhase = state.hasPlayedThisPhase;
+        if (state.turnOrder) turnOrder = state.turnOrder;
+        if (state.turnDir) turnDir = state.turnDir;
+        if (state.setupDone != null) setupDone = state.setupDone;
+        if (state.firstPlayerId != null) firstPlayerId = state.firstPlayerId;
+        if (setupDone) hideCinema();
+        render();
+      } finally {
+        _applyingNet = false;
+      }
+    }
+    function syncPush() {
+      if (_applyingNet) return;
+      if (localStorage.getItem('onlineMode') !== '1' || !window.GameNet) return;
+      try { GameNet.pushState(exportGameState()); } catch (e) { console.warn(e); }
+    }
+    // 在關鍵操作後呼叫同步
+    const _origEndPhase = endPhase;
+    endPhase = function(fromRefillModal) {
+      _origEndPhase(fromRefillModal);
+      syncPush();
+    };
+    if (localStorage.getItem('onlineMode') === '1' && window.GameNet) {
+      GameNet.on('game_state', (d) => {
+        if (d.fromPlayerId === myId) return;
+        importGameState(d.state);
+      });
+      GameNet.on('reconnected', (d) => {
+        if (d.gameState) importGameState(d.gameState);
+      });
+
+      GameNet.on('game_event', (d) => {
+        const ev = d.event;
+        const payload = d.payload || {};
+        if (ev === 'player_ready') {
+          readyPlayers[payload.playerId] = true;
+          const names = (room.players || []).filter(p => readyPlayers[p.id]).map(p => p.name).join('、');
+          showCinema('等待玩家載入中…', `已就緒：${names || '…'}`);
+          const meP = me();
+          const isHost = meP && (meP.isHost || meP.id === (room.hostId || 1));
+          if (isHost && allPlayersReady() && !setupDone) {
+            setTimeout(() => hostRunOrderSequence(), 2000);
+          }
+        }
+        if (ev === 'order_announce') {
+          showCinema('抽取隨機玩家順序', '即將轉動輪盤決定第一位…');
+        }
+        if (ev === 'order_spin') {
+          showCinema('輪盤轉動中', '指針停下的那位即為第一位', { roulette: true });
+          requestAnimationFrame(() => spinRouletteTo(payload.firstId));
+        }
+        if (ev === 'order_first') {
+          firstPlayerId = payload.firstId;
+          // 等輪盤動畫，房主會再發方向；非房主顯示等待
+          setTimeout(() => {
+            if (!setupDone) {
+              showCinema(`第一位：${payload.name || ''}`, '等待房主選擇順／逆時針…');
+            }
+          }, 500);
+        }
+        if (ev === 'order_dir') {
+          applyTurnSetup(payload.firstId, payload.dir);
+        }
+      });
+
+      GameNet.on('open', () => {
+        const r = JSON.parse(localStorage.getItem('currentRoom') || '{}');
+        if (r.code && myId) GameNet.reconnect(r.code, myId);
+      });
+      GameNet.connect();
+    }
+
+
+        // 同步名號
+    (function syncName() {
+      const n = localStorage.getItem('playerName');
+      const p = me();
+      if (n && p) p.name = n;
+      if (p) {
+        const d = loadTitleData();
+        p.titleId = d.equipped || null;
+      }
+    })();
+
+    render();
+    // 更新職業按鈕文字
+    (function refreshJobBtn() {
+      const p = me();
+      const btn = document.getElementById('jobBtn');
+      if (btn && p.jobTitle) btn.textContent = '🎭 ' + p.jobTitle;
+    })();
+
+    // 開場：等待全員 → 大字抽取 → 輪盤第一人 → 順/逆時針
+    beginSetupFlow();
+  </script>
+</body>
+</html>
