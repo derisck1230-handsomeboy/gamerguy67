@@ -2911,23 +2911,41 @@
       }
       showCinema('等待玩家載入中…', '請稍候，確認每位船員都已上船');
       readyPlayers[myId] = true;
-      GameNet.sendEvent('player_ready', { playerId: myId });
-      // 房主檢查
-      const check = () => {
-        if (setupDone) return;
-        if (!allPlayersReady()) return;
+      const sendReady = () => {
+        if (setupDone || !window.GameNet) return;
+        try { GameNet.sendEvent('player_ready', { playerId: myId }); } catch (e) {}
+      };
+      sendReady();
+      // 房主檢查；逾時則強制開始，避免一直卡在載入
+      let started = false;
+      const tryStart = (force) => {
+        if (setupDone || started) return;
         const meP = me();
         const isHost = meP && (meP.isHost || meP.id === (room.hostId || 1));
-        if (isHost) {
-          setTimeout(() => hostRunOrderSequence(), 2000);
+        if (!isHost) return;
+        if (!force && !allPlayersReady()) return;
+        started = true;
+        if (force) {
+          (room.players || []).forEach(p => { readyPlayers[p.id] = true; });
+          showCinema('等待玩家載入中…', '部分玩家逾時，即將開始…');
         }
+        setTimeout(() => hostRunOrderSequence(), force ? 800 : 1500);
       };
-      setTimeout(check, 500);
-      // 定期再檢查
+      setTimeout(() => tryStart(false), 500);
       let tries = 0;
       const iv = setInterval(() => {
-        if (setupDone || ++tries > 40) { clearInterval(iv); return; }
-        check();
+        if (setupDone) { clearInterval(iv); return; }
+        tries++;
+        sendReady(); // 重送就緒，避免對方沒收到
+        tryStart(false);
+        const readyCount = (room.players || []).filter(p => readyPlayers[p.id]).length;
+        const total = (room.players || []).length || 0;
+        showCinema('等待玩家載入中…', `已就緒 ${readyCount}/${total}（最多等約 8 秒）`);
+        // 約 8 秒後房主強制開始
+        if (tries >= 16) {
+          clearInterval(iv);
+          tryStart(true);
+        }
       }, 500);
     }
 
