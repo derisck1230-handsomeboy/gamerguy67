@@ -360,25 +360,14 @@ async def on_connect(ws: ServerConnection) -> None:
             return
         room = rooms[code]
         room["clients"].discard(ws)
-        if room["status"] == "waiting" and pid is not None:
-            room["players"] = [p for p in room["players"] if p["id"] != pid]
-            if not room["players"]:
-                rooms.pop(code, None)
-                return
-            if room["hostId"] == pid:
-                room["hostId"] = room["players"][0]["id"]
-                room["players"][0]["isHost"] = True
-            await broadcast_room(code, {"type": "room_update", "room": public_room(room)})
-        else:
-            await broadcast_room(
-                code,
-                {
-                    "type": "player_offline",
-                    "playerId": pid,
-                    "name": meta.get("name"),
-                },
-            )
-
+        await broadcast_room(
+            code,
+            {
+                "type": "player_offline",
+                "playerId": pid,
+                "name": meta.get("name"),
+            },
+        )
 
 async def main() -> None:
     print(f"[期貨所] STATIC={STATIC_DIR}")
