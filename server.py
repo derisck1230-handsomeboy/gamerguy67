@@ -20,8 +20,14 @@ from websockets.asyncio.server import ServerConnection
 HOST = "0.0.0.0"
 PORT = int(os.environ.get("PORT", "8766"))
 
-# game-ui 根目錄（server 的上一層）
-STATIC_DIR = Path(__file__).resolve().parent.parent
+def _find_static_dir():
+    here = Path(__file__).resolve().parent
+    for c in (here, here.parent):
+        if (c / "lobby.html").is_file():
+            return c
+    return here
+
+STATIC_DIR = _find_static_dir()
 
 rooms: Dict[str, Dict[str, Any]] = {}
 clients: Dict[ServerConnection, Dict[str, Any]] = {}
