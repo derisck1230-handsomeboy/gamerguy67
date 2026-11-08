@@ -157,14 +157,15 @@
       <p style="text-align:center;color:#5a3a22;margin-bottom:8px;">準備啟航，先建立你的名號</p>
       <button class="btn btn-primary" onclick="goStep('name')">⚔ 開始遊戲</button>
       <button class="btn btn-book" onclick="goStep('rules')">📖 遊戲規則</button>
-      <button class="btn btn-secondary" onclick="goStep('events')" style="margin-top:10px;">🎁 活動</button>
+      <button class="btn btn-secondary" onclick="goStep('events')" style="margin-top:10px;">🔑 代碼</button>
+      <button class="btn btn-secondary" onclick="goStep('activity'); renderActivity();" style="margin-top:8px;">🎁 活動</button>
       <button class="btn btn-ghost" onclick="goStep('titles'); try{renderTitles();}catch(e){console.error(e);}" style="margin-top:8px;">🏷️ 稱號</button>
       <button class="btn btn-test" onclick="quickTest()">⚡ 快速 2 人測試</button>
     </div>
 
     <div class="panel" id="stepEvents">
-      <span class="step-tag">🎁 活動</span>
-      <div class="summary" style="margin-bottom:12px;">限時好康與兌換都在這裡</div>
+      <span class="step-tag">🔑 代碼</span>
+      <div class="summary" style="margin-bottom:12px;">輸入代碼兌換稱號與獎勵</div>
       <div style="background:rgba(255,255,255,0.4);border:1px solid var(--gold);border-radius:12px;padding:16px;margin-bottom:12px;">
         <div style="font-weight:800;font-size:1.05rem;color:var(--wood-dark);margin-bottom:8px;">輸入代碼來獲得好康的！</div>
         <p style="font-size:0.85rem;color:#5a3a22;margin-bottom:10px;">標題：輸入代碼來獲得好康的！</p>
@@ -172,6 +173,21 @@
         <input type="text" id="promoCode" maxlength="24" placeholder="輸入代碼…" style="margin-bottom:8px;" />
         <button class="btn btn-primary" onclick="redeemPromo()">兌換</button>
         <p id="promoMsg" style="margin-top:10px;font-size:0.85rem;color:#5a3a22;min-height:1.2em;"></p>
+      </div>
+      <button class="btn btn-ghost" onclick="goStep('start')">返回</button>
+    </div>
+
+
+    <div class="panel" id="stepActivity">
+      <span class="step-tag">🎁 活動</span>
+      <div class="summary" style="margin-bottom:12px;">目前進行中的活動</div>
+      <div style="background:rgba(255,255,255,0.4);border:1px solid var(--gold);border-radius:12px;padding:16px;margin-bottom:12px;">
+        <div style="font-weight:800;font-size:1.1rem;color:var(--wood-dark);">🐱 餵食小貓</div>
+        <p style="font-size:0.85rem;color:#5a3a22;margin:8px 0;">每天可餵一次。每餵一次小貓會變胖，並獲得 <strong>期貨代幣</strong>（與局內金錢無關）。</p>
+        <div style="font-size:2.5rem;text-align:center;margin:10px 0;" id="catFace">🐱</div>
+        <p style="text-align:center;font-size:0.9rem;">飽食度：<strong id="catLevel">0</strong>　期貨代幣：<strong id="tokenBal">0</strong></p>
+        <button class="btn btn-primary" onclick="feedCat()">餵食小貓（每日一次）</button>
+        <p id="feedMsg" style="margin-top:8px;font-size:0.85rem;color:#5a3a22;min-height:1.2em;"></p>
       </div>
       <button class="btn btn-ghost" onclick="goStep('start')">返回</button>
     </div>
@@ -277,6 +293,12 @@
     let pendingAction = null; // 'create' | 'join'
 
     const TITLE_DEFS = {
+      first_win: {
+        id: 'first_win',
+        name: '首勝玩家',
+        banner: '',
+        hint: '首次結算獲得第一名'
+      },
       futures_rookie: {
         id: 'futures_rookie',
         name: '期貨新手',
@@ -323,16 +345,19 @@
         const def = TITLE_DEFS[id];
         const have = owned.includes(id);
         const eq = d.equipped === id;
+        const bg = def.banner
+          ? `<img class="title-banner-img" src="${def.banner}" alt="" />`
+          : `<div class="title-banner-img" style="background:linear-gradient(135deg,#c9a227,#5a3a10);"></div>`;
         if (!have) {
           return `<div class="title-banner-card locked">
-            <img class="title-banner-img" src="${def.banner}" alt="" />
+            ${bg}
             <div class="title-shade"></div>
             <div class="title-text">？？？</div>
           </div>
           <p class="title-meta">未擁有「${def.name}」 · ${def.hint || '可於活動兌換'}</p>`;
         }
         return `<div class="title-banner-card">
-          <img class="title-banner-img" src="${def.banner}" alt="" />
+          ${bg}
           <div class="title-shade"></div>
           <div class="title-text">${def.name}</div>
           <div class="title-actions">
@@ -356,6 +381,43 @@
       saveTitleData(d);
       renderTitles();
     }
+
+    function loadMeta() {
+      try { return JSON.parse(localStorage.getItem('lobbyMeta') || '{}'); } catch (_) { return {}; }
+    }
+    function saveMeta(m) { localStorage.setItem('lobbyMeta', JSON.stringify(m)); }
+    function renderActivity() {
+      const m = loadMeta();
+      const level = m.catLevel || 0;
+      const tokens = m.tokens || 0;
+      const el = document.getElementById('catLevel');
+      const tk = document.getElementById('tokenBal');
+      const face = document.getElementById('catFace');
+      if (el) el.textContent = String(level);
+      if (tk) tk.textContent = String(tokens);
+      if (face) {
+        // 越胖字越大
+        const size = Math.min(4.5, 2.2 + level * 0.15);
+        face.style.fontSize = size + 'rem';
+        face.textContent = level >= 10 ? '😻' : level >= 5 ? '🐱' : '🐈';
+      }
+    }
+    function feedCat() {
+      const m = loadMeta();
+      const today = new Date().toISOString().slice(0, 10);
+      const msg = document.getElementById('feedMsg');
+      if (m.lastFeed === today) {
+        if (msg) { msg.textContent = '今天已經餵過了，明天再來吧！'; msg.style.color = '#9b2226'; }
+        return;
+      }
+      m.lastFeed = today;
+      m.catLevel = (m.catLevel || 0) + 1;
+      m.tokens = (m.tokens || 0) + 10;
+      saveMeta(m);
+      renderActivity();
+      if (msg) { msg.textContent = '餵食成功！小貓更圓了，期貨代幣 +10'; msg.style.color = '#1b6b3a'; }
+    }
+
     function redeemPromo() {
       const code = (document.getElementById('promoCode').value || '').trim();
       const msg = document.getElementById('promoMsg');
@@ -396,7 +458,7 @@
 
     function goStep(name) {
       document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-      const map = { start: 'stepStart', name: 'stepName', room: 'stepRoom', rules: 'stepRules', events: 'stepEvents', titles: 'stepTitles' };
+      const map = { start: 'stepStart', name: 'stepName', room: 'stepRoom', rules: 'stepRules', events: 'stepEvents', activity: 'stepActivity', titles: 'stepTitles' };
       const panel = document.getElementById(map[name]);
       if (panel) panel.classList.add('active');
       const frame = document.getElementById('frame');

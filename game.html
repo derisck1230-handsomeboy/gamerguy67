@@ -964,7 +964,7 @@
   <div class="modal-mask" id="bidModal">
     <div class="modal" style="max-width:440px;text-align:center;">
       <h3 style="color:#c9a227;">買回合 · 喊價搶順序</h3>
-      <p style="font-size:0.9rem;color:#5a3a22;margin-bottom:8px;">金額高者先操作。同價猜拳定先後。喊價會立刻從現金扣除。</p>
+      <p style="font-size:0.9rem;color:#5a3a22;margin-bottom:8px;">買回合＝喊價搶操作順序（不是買貨）。高價先手；同價隨機。50～500，階梯 50。立刻扣現金。</p>
       <p style="font-size:1.1rem;">倒數 <strong id="bidTimer" style="color:#9b2226;">10</strong> 秒</p>
       <div id="bidList" style="text-align:left;margin:12px 0;max-height:160px;overflow:auto;font-size:0.9rem;"></div>
       <p style="font-size:0.85rem;">你已喊 <strong id="bidCount">0</strong>／3 次　目前出價：<strong id="myBidShow">0</strong></p>
@@ -973,7 +973,7 @@
         <input class="qty-input" id="bidInput" inputmode="numeric" value="0" style="width:100px;" />
         <button type="button" class="qty-btn" onclick="stepBid(50)">＋</button>
       </div>
-      <p class="qty-hint">0～1000，每次最多再加價；共可喊 3 次</p>
+      <p class="qty-hint">50～500（每次 +50），共可喊 3 次</p>
       <div class="modal-actions">
         <button class="btn-gold" onclick="submitBid()">喊價</button>
         <button class="btn-navy" onclick="passBid()">不喊了</button>
@@ -1028,15 +1028,15 @@
   <script src="net.js"></script>
   <script>
     const GOODS = [
-      { id: 'cotton', name: '棉花', icon: '☁️', price: 100, stock: 20 },
-      { id: 'coal', name: '煤炭', icon: '🪨', price: 100, stock: 20 },
-      { id: 'tea', name: '茶葉', icon: '🍵', price: 100, stock: 20 },
-      { id: 'coffee', name: '咖啡', icon: '☕', price: 100, stock: 20 },
-      { id: 'wheat', name: '小麥', icon: '🌾', price: 100, stock: 20 },
-      { id: 'corn', name: '玉米', icon: '🌽', price: 100, stock: 20 }
+      { id: 'cotton', name: '棉花', icon: '☁️', price: 150, stock: 20 },
+      { id: 'coal', name: '煤炭', icon: '🪨', price: 150, stock: 20 },
+      { id: 'tea', name: '茶葉', icon: '🍵', price: 150, stock: 20 },
+      { id: 'coffee', name: '咖啡', icon: '☕', price: 150, stock: 20 },
+      { id: 'wheat', name: '小麥', icon: '🌾', price: 150, stock: 20 },
+      { id: 'corn', name: '玉米', icon: '🌽', price: 150, stock: 20 }
     ];
-    // 已移除 ±8；以 ±6±4±2 湊滿 96 張
-    const CARD_VALUES = [6, 4, 2, -2, -4, -6];
+    // 原始設計：±8±6±4±2，每貨每點 2 張 → 6×8×2 = 96
+    const CARD_VALUES = [8, 6, 4, 2, -2, -4, -6, -8];
     // 職業：銀行（需支付 3000 成為）
     const JOBS = [
       {
@@ -1220,15 +1220,9 @@
       return goodId + '_' + (value > 0 ? '+' + value : String(value));
     }
     function initDeck() {
-      // 6 貨物 × 6 點數 × 2 = 72；每種點數再在 4 個貨物上 +1 → 每點數共 16 張，總計 96
+      // 6 貨物 × 8 點數 × 2 = 96
       GOODS.forEach(g => {
         CARD_VALUES.forEach(v => { deckStock[deckKey(g.id, v)] = 2; });
-      });
-      CARD_VALUES.forEach(v => {
-        for (let i = 0; i < 4; i++) {
-          const g = GOODS[i % GOODS.length];
-          deckStock[deckKey(g.id, v)] += 1;
-        }
       });
     }
     initDeck();
@@ -1242,6 +1236,11 @@
     const room = JSON.parse(localStorage.getItem('currentRoom') || '{}');
     const myId = parseInt(localStorage.getItem('myPlayerId') || '1');
     const TITLE_DEFS = {
+      first_win: {
+        id: 'first_win',
+        name: '首勝玩家',
+        banner: ''
+      },
       futures_rookie: {
         id: 'futures_rookie',
         name: '期貨新手',
@@ -1252,11 +1251,14 @@
       try { return JSON.parse(localStorage.getItem('playerTitles') || '{}'); } catch (_) { return {}; }
     }
     function getEquippedTitleDef(player) {
-      // 僅本機玩家讀 localStorage；連機時可從 player.titleId
-      let tid = player && player.titleId;
-      if ((!tid || player.id === myId)) {
+      if (!player) return null;
+      let tid = null;
+      if (player.id === myId) {
         const d = loadTitleData();
-        if (d.equipped) tid = d.equipped;
+        tid = d.equipped || player.titleId || null;
+      } else {
+        // 別人：看同步過來的 titleId（個人簡介可見）
+        tid = player.titleId || null;
       }
       return (tid && TITLE_DEFS[tid]) ? TITLE_DEFS[tid] : null;
     }
@@ -1273,6 +1275,11 @@
     let firstPlayerId = null;
     let currentTurnId = null;   // 目前輪到誰操作
     let phaseDoneIds = {};      // 本階段已結束的玩家 id
+    let seatOrder = [];         // 開場輪盤固定座位（共享隔壁用，整局不變）
+    let buyPhaseDeadline = 0;   // 買貨階段截止時間戳
+    let buyTimerId = null;
+    let setupStarted = false;   // 防止開場流程重入閃爍
+
     // 買回合（喊價搶操作順序）
     let bidState = {
       bids: {},        // playerId -> amount
@@ -1351,8 +1358,10 @@
 
     function me() { return room.players.find(p => p.id === myId) || room.players[0]; }
     function neighbor() {
-      const idx = room.players.findIndex(p => p.id === myId);
-      return room.players[(idx + 1) % room.players.length];
+      const order = (seatOrder && seatOrder.length) ? seatOrder : (room.players || []).map(p => p.id);
+      const idx = order.indexOf(myId);
+      const nid = order[(idx < 0 ? 0 : idx + 1) % order.length];
+      return room.players.find(p => p.id === nid) || room.players[(room.players.findIndex(p => p.id === myId) + 1) % room.players.length];
     }
     function getZone(price) {
       if (price <= 150) return 'green';
@@ -1500,7 +1509,7 @@
             <div class="pc-meta">
               <div class="name">${pl.name}${isMe ? ' ·你' : ''}</div>
               <div class="pc-job">${pl.jobTitle || '無職業'}${pl.isHost ? ' ·房主' : ''}</div>
-              ${(() => { const td = getEquippedTitleDef(pl); return td ? `<div class="pc-title-chip">「${td.name}」</div>` : ''; })()}
+              ${(() => { if (!isMe) return ''; const td = getEquippedTitleDef(pl); return td ? `<div class="pc-title-chip">「${td.name}」</div>` : ''; })()}
             </div>
           </div>
           <div class="pc-stats">
@@ -2393,11 +2402,27 @@
       else deckStock[key] = 1;
     }
 
-    function endGameSettle() {
+    function endGameSettle(fromNet) {
+      if (!fromNet && isOnlineMode() && window.GameNet) {
+        try { GameNet.sendEvent('game_end_settle', {}); } catch (e) {}
+      }
       closeModals();
+      clearBuyPhaseTimer();
       const ranked = [...room.players]
-        .map(pl => ({ name: pl.name, total: totalAssets(pl), cash: pl.cash, hold: holdValue(pl), debt: pl.debt }))
+        .map(pl => ({ id: pl.id, name: pl.name, total: totalAssets(pl), cash: pl.cash, hold: holdValue(pl), debt: pl.debt }))
         .sort((a, b) => b.total - a.total);
+      // 首勝稱號（本機勝者）
+      if (ranked[0] && ranked[0].id === myId) {
+        try {
+          const d = loadTitleData();
+          if (!d.owned) d.owned = [];
+          if (!d.owned.includes('first_win')) {
+            d.owned.push('first_win');
+            localStorage.setItem('playerTitles', JSON.stringify(d));
+            showToast('獲得稱號「首勝玩家」！', 'success');
+          }
+        } catch (e) {}
+      }
       let html = '';
       ranked.forEach((r, i) => {
         const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}.`;
@@ -2549,6 +2574,7 @@
         selectedCards = [];
         // 下一位；若全員完成買貨 → 進入波動，從第一位開始
         if (allPhaseDone()) {
+          clearBuyPhaseTimer();
           phaseDoneIds = {};
           phase = 'fluctuate';
           hasPlayedThisPhase = false;
@@ -2861,8 +2887,9 @@
       return next;
     }
     function allPhaseDone() {
-      const order = turnOrder.length ? turnOrder : (room.players || []).map(p => p.id);
-      return order.length > 0 && order.every(id => phaseDoneIds[id]);
+      const order = turnOrder.length ? turnOrder.filter(id => activePlayerIds().includes(id)) : activePlayerIds();
+      const ids = order.length ? order : activePlayerIds();
+      return ids.length > 0 && ids.every(id => phaseDoneIds[id]);
     }
     function setTurn(pid, sync) {
       currentTurnId = pid;
@@ -2872,6 +2899,11 @@
 
     function isOnlineMode() {
       return localStorage.getItem('onlineMode') === '1' && window.GameNet;
+    }
+    function activePlayerIds() {
+      // 本機測試只有自己操作，避免卡在「等玩家二」
+      if (!isOnlineMode()) return [myId];
+      return (room.players || []).map(p => p.id);
     }
     function allPlayersReady() {
       const ids = (room.players || []).map(p => p.id);
@@ -2883,14 +2915,14 @@
       const tEl = document.getElementById('cinemaTitle');
       const sEl = document.getElementById('cinemaSub');
       mask.classList.add('show');
-      tEl.textContent = title || '';
+      const sameTitle = (tEl.textContent === (title || ''));
+      if (!sameTitle) {
+        tEl.textContent = title || '';
+        tEl.classList.remove('show');
+        requestAnimationFrame(() => tEl.classList.add('show'));
+      }
       sEl.textContent = sub || '';
-      // restart animation
-      tEl.classList.remove('show'); sEl.classList.remove('show');
-      requestAnimationFrame(() => {
-        tEl.classList.add('show');
-        if (sub) sEl.classList.add('show');
-      });
+      sEl.classList.add('show');
       const rw = document.getElementById('rouletteWrap');
       const act = document.getElementById('cinemaActions');
       if (opts && opts.roulette) {
@@ -2954,9 +2986,8 @@
       firstPlayerId = firstId;
       turnDir = dir || 'cw';
       turnOrder = buildOrderFromFirst(firstId, turnDir);
-      const map = {};
-      room.players.forEach(p => { map[p.id] = p; });
-      room.players = turnOrder.map(id => map[id]).filter(Boolean);
+      // 座位序固定整局（共享牌隔壁），之後買回合只改操作序 turnOrder
+      if (!seatOrder.length) seatOrder = turnOrder.slice();
       setupDone = true;
       phase = 'buy';
       phaseDoneIds = {};
@@ -2966,13 +2997,13 @@
         const pl = room.players.find(p => p.id === id);
         return pl ? pl.name : id;
       }).join(' → ');
-      showToast(`行動順序：${names}（${turnDir === 'cw' ? '順時針' : '逆時針'}）`, 'success');
+      showToast(`第1回合操作序：${names}（共享隔壁已固定）`, 'success');
+      startBuyPhaseTimer();
       render();
-      showBuyRoundBanner();
       if (typeof syncPush === 'function') syncPush();
     }
     function hostRunOrderSequence() {
-      // 僅房主執行動畫節奏並廣播（進入時已全員就緒並等待過 2 秒）
+      if (setupDone) return;
       const players = room.players || [];
       if (!players.length) return;
       showCinema('抽取隨機玩家順序', '即將轉動輪盤決定第一位…');
@@ -3061,6 +3092,53 @@
         }
       }, 1000);
     }
+
+    function clearBuyPhaseTimer() {
+      if (buyTimerId) { clearInterval(buyTimerId); buyTimerId = null; }
+      buyPhaseDeadline = 0;
+      const el = document.getElementById('buyTimerHud');
+      if (el) el.remove();
+    }
+    function startBuyPhaseTimer() {
+      clearBuyPhaseTimer();
+      if (phase !== 'buy') return;
+      buyPhaseDeadline = Date.now() + 3 * 60 * 1000;
+      let hud = document.getElementById('buyTimerHud');
+      if (!hud) {
+        hud = document.createElement('div');
+        hud.id = 'buyTimerHud';
+        hud.style.cssText = 'position:fixed;top:12px;right:12px;z-index:50;background:rgba(12,24,40,0.88);color:#f3e5c5;padding:8px 12px;border-radius:10px;border:1px solid #c9a227;font-size:0.85rem;';
+        document.body.appendChild(hud);
+      }
+      buyTimerId = setInterval(() => {
+        if (phase !== 'buy') { clearBuyPhaseTimer(); return; }
+        const left = buyPhaseDeadline - Date.now();
+        if (left >= 0) {
+          const m = Math.floor(left / 60000);
+          const s = Math.floor((left % 60000) / 1000);
+          hud.textContent = `買貨時限 ${m}:${String(s).padStart(2,'0')}`;
+          hud.style.color = '#f3e5c5';
+        } else {
+          const overtimeMin = Math.ceil((-left) / 60000); // 剛超也算 1 分
+          const penalty = overtimeMin * 100;
+          hud.textContent = `超時 ${overtimeMin} 分 · 已扣 ${penalty}`;
+          hud.style.color = '#ff8a80';
+          // 每跨過一分鐘扣一次：用 data 標記
+          const key = 'ot_' + overtimeMin;
+          if (hud.dataset.lastOt !== String(overtimeMin)) {
+            hud.dataset.lastOt = String(overtimeMin);
+            const p = me();
+            if (p && isMyTurn()) {
+              p.cash -= 100;
+              showToast(`買貨超時，扣 100（第 ${overtimeMin} 分鐘）`, 'error');
+              render();
+              if (typeof syncPush === 'function') syncPush();
+            }
+          }
+        }
+      }, 1000);
+    }
+
     function openBidRound() {
       resetBidState();
       bidState.active = true;
@@ -3079,7 +3157,12 @@
       const inp = document.getElementById('bidInput');
       if (!inp) return;
       let v = parseInt(inp.value, 10) || 0;
-      v = Math.max(0, Math.min(1000, v + delta));
+      // 僅 50 的倍數，最低 50、最高 500（0 表示暫不喊）
+      if (v === 0 && delta > 0) v = 50;
+      else v = v + (delta > 0 ? 50 : -50);
+      if (v < 50) v = 0;
+      v = Math.max(0, Math.min(500, v));
+      if (v > 0) v = Math.round(v / 50) * 50;
       inp.value = String(v);
     }
     function submitBid() {
@@ -3090,10 +3173,14 @@
       const inp = document.getElementById('bidInput');
       let v = parseInt(inp && inp.value, 10);
       if (isNaN(v)) v = 0;
-      v = Math.max(0, Math.min(1000, v));
+      if (v > 0 && v < 50) v = 50;
+      v = Math.max(0, Math.min(500, v));
+      if (v > 0) v = Math.round(v / 50) * 50;
+      if (v > 0 && v % 50 !== 0) { showToast('只能以 50 為單位喊價', 'error'); return; }
       const prev = bidState.bids[myId] || 0;
       if (v < prev) { showToast('新出價不能低於你目前的出價', 'error'); return; }
       if (v === prev && n > 0) { showToast('請提高出價，或按不喊了', 'error'); return; }
+      if (v > 0 && v < 50) { showToast('最低喊價 50', 'error'); return; }
       // 只扣除「這次多喊的差額」
       const diff = v - prev;
       const p = me();
@@ -3130,39 +3217,28 @@
       clearBidTimer();
       const modal = document.getElementById('bidModal');
       if (modal) modal.classList.remove('show');
-      // 依出價高到低排序；同價進入猜拳佇列（簡化：同價用玩家 id 穩定排序後，可手動猜拳）
+      // 依出價高到低；同價隨機
       const arr = (room.players || []).map(pl => ({
         id: pl.id,
         name: pl.name,
-        bid: bidState.bids[pl.id] || 0
+        bid: bidState.bids[pl.id] || 0,
+        rand: Math.random()
       }));
       arr.sort((a, b) => {
         if (b.bid !== a.bid) return b.bid - a.bid;
-        return a.id - b.id; // 暫時同價用 id；真猜拳在 rpsQueue
+        return a.rand - b.rand; // 同價隨機
       });
-      // 偵測同價群組
-      const ties = [];
-      for (let i = 0; i < arr.length - 1; i++) {
-        if (arr[i].bid === arr[i + 1].bid && arr[i].bid > 0) {
-          ties.push([arr[i], arr[i + 1]]);
-        }
-      }
       turnOrder = arr.map(x => x.id);
-      const map = {};
-      room.players.forEach(p => { map[p.id] = p; });
-      room.players = turnOrder.map(id => map[id]).filter(Boolean);
+      // 不改 seatOrder、不重排 room.players（共享隔壁固定）
       phaseDoneIds = {};
       currentTurnId = turnOrder[0] || myId;
       setupDone = true;
       phase = 'buy';
       const names = arr.map(x => `${x.name}(${x.bid})`).join(' → ');
-      showToast('買回合結束，操作順序：' + names, 'success');
-      if (ties.length) {
-        showToast('有同價玩家，順序已暫定；可在之後加猜拳細分', 'success');
-      }
+      showToast('買回合結束，操作順序：' + names + '（共享仍依開場座位）', 'success');
+      startBuyPhaseTimer();
       render();
       if (typeof syncPush === 'function') syncPush();
-      // 若需要猜拳：簡化版自動以 id 排序已完成；完整猜拳 UI 可再擴
     }
 
     function showBuyRoundBanner(isBidAuction) {
@@ -3183,14 +3259,15 @@
       setTimeout(() => el.classList.remove('show'), 2000);
     }
     function beginSetupFlow() {
-      if (setupDone) return;
+      if (setupDone || setupStarted) return;
+      setupStarted = true;
       phase = 'setup';
       const online = isOnlineMode();
       if (!online) {
-        // 本機測試：視作全員就緒，2 秒後開抽
         (room.players || []).forEach(p => { readyPlayers[p.id] = true; });
         showCinema('等待玩家載入中…', '本機測試模式');
-        setTimeout(() => { hideCinema(); openBidRound(); }, 1500);
+        // 第一回合：輪盤定座位與操作序，沒有買回合（喊價）
+        setTimeout(() => hostRunOrderSequence(), 1500);
         return;
       }
       showCinema('等待玩家載入中…', '請稍候，確認每位船員都已上船');
@@ -3200,7 +3277,6 @@
         try { GameNet.sendEvent('player_ready', { playerId: myId }); } catch (e) {}
       };
       sendReady();
-      // 房主檢查；逾時則強制開始，避免一直卡在載入
       let started = false;
       const tryStart = (force) => {
         if (setupDone || started) return;
@@ -3211,29 +3287,23 @@
         started = true;
         if (force) {
           (room.players || []).forEach(p => { readyPlayers[p.id] = true; });
-          showCinema('等待玩家載入中…', '部分玩家逾時，即將開始買回合…');
+          const sub = document.getElementById('cinemaSub');
+          if (sub) sub.textContent = '部分玩家逾時，即將開輪盤…';
         }
-        setTimeout(() => {
-          hideCinema();
-          if (isOnlineMode() && window.GameNet) GameNet.sendEvent('start_bid_round', {});
-          openBidRound();
-        }, force ? 800 : 1500);
+        // 第一回合只跑輪盤定序，不進買回合喊價
+        setTimeout(() => hostRunOrderSequence(), force ? 600 : 1200);
       };
       setTimeout(() => tryStart(false), 500);
       let tries = 0;
       const iv = setInterval(() => {
         if (setupDone) { clearInterval(iv); return; }
         tries++;
-        sendReady(); // 重送就緒，避免對方沒收到
+        sendReady();
         tryStart(false);
         const readyCount = (room.players || []).filter(p => readyPlayers[p.id]).length;
         const total = (room.players || []).length || 0;
         const sub = document.getElementById('cinemaSub');
-        if (sub) {
-          sub.textContent = `已就緒 ${readyCount}/${total}（最多等約 8 秒）`;
-          sub.classList.add('show');
-        }
-        // 約 8 秒後房主強制開始
+        if (sub) sub.textContent = `已就緒 ${readyCount}/${total}`;
         if (tries >= 16) {
           clearInterval(iv);
           tryStart(true);
@@ -3262,6 +3332,7 @@
         firstPlayerId: firstPlayerId,
         currentTurnId: currentTurnId,
         phaseDoneIds: phaseDoneIds,
+        seatOrder: seatOrder,
         ts: Date.now()
       };
     }
@@ -3299,6 +3370,7 @@
         if (state.firstPlayerId != null) firstPlayerId = state.firstPlayerId;
         if (state.currentTurnId != null) currentTurnId = state.currentTurnId;
         if (state.phaseDoneIds) phaseDoneIds = state.phaseDoneIds;
+        if (state.seatOrder) seatOrder = state.seatOrder;
         if (setupDone) hideCinema();
         render();
       } finally {
@@ -3338,6 +3410,9 @@
           if (isHost && allPlayersReady() && !setupDone) {
             setTimeout(() => hostRunOrderSequence(), 2000);
           }
+        }
+        if (ev === 'game_end_settle') {
+          endGameSettle(true);
         }
         if (ev === 'start_bid_round') {
           if (!bidState.active) openBidRound();
