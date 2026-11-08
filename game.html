@@ -959,6 +959,41 @@
     </div>
     <div class="cinema-actions" id="cinemaActions" style="display:none;"></div>
   </div>
+
+  <!-- 買回合：喊價搶操作順序 -->
+  <div class="modal-mask" id="bidModal">
+    <div class="modal" style="max-width:440px;text-align:center;">
+      <h3 style="color:#c9a227;">買回合 · 喊價搶順序</h3>
+      <p style="font-size:0.9rem;color:#5a3a22;margin-bottom:8px;">金額高者先操作。同價猜拳定先後。喊價會立刻從現金扣除。</p>
+      <p style="font-size:1.1rem;">倒數 <strong id="bidTimer" style="color:#9b2226;">10</strong> 秒</p>
+      <div id="bidList" style="text-align:left;margin:12px 0;max-height:160px;overflow:auto;font-size:0.9rem;"></div>
+      <p style="font-size:0.85rem;">你已喊 <strong id="bidCount">0</strong>／3 次　目前出價：<strong id="myBidShow">0</strong></p>
+      <div class="qty-control" style="justify-content:center;">
+        <button type="button" class="qty-btn" onclick="stepBid(-50)">−</button>
+        <input class="qty-input" id="bidInput" inputmode="numeric" value="0" style="width:100px;" />
+        <button type="button" class="qty-btn" onclick="stepBid(50)">＋</button>
+      </div>
+      <p class="qty-hint">0～1000，每次最多再加價；共可喊 3 次</p>
+      <div class="modal-actions">
+        <button class="btn-gold" onclick="submitBid()">喊價</button>
+        <button class="btn-navy" onclick="passBid()">不喊了</button>
+      </div>
+    </div>
+  </div>
+  <!-- 猜拳 -->
+  <div class="modal-mask" id="rpsModal">
+    <div class="modal" style="max-width:400px;text-align:center;">
+      <h3>同價猜拳定順序</h3>
+      <p id="rpsInfo">與對手猜拳</p>
+      <div style="display:flex;gap:10px;justify-content:center;margin:16px 0;">
+        <button class="btn-navy" style="font-size:1.5rem;padding:12px 16px;" onclick="pickRps('rock')">✊</button>
+        <button class="btn-navy" style="font-size:1.5rem;padding:12px 16px;" onclick="pickRps('scissors')">✌️</button>
+        <button class="btn-navy" style="font-size:1.5rem;padding:12px 16px;" onclick="pickRps('paper')">🖐️</button>
+      </div>
+      <p id="rpsStatus" style="font-size:0.85rem;color:#5a3a22;">請出拳（未公開）</p>
+    </div>
+  </div>
+
   <div class="buy-round-banner" id="buyRoundBanner"><span>買回合！</span></div>
 
   <!-- 大銀幕提示（物權主宰等） -->
@@ -1236,6 +1271,20 @@
     let setupDone = false;   // 開場輪盤是否完成
     let readyPlayers = {};   // online: playerId -> true
     let firstPlayerId = null;
+    let currentTurnId = null;   // 目前輪到誰操作
+    let phaseDoneIds = {};      // 本階段已結束的玩家 id
+    // 買回合（喊價搶操作順序）
+    let bidState = {
+      bids: {},        // playerId -> amount
+      counts: {},      // playerId -> 已喊次數
+      passed: {},      // playerId -> true
+      timer: 10,
+      timerId: null,
+      active: false
+    };
+    let rpsState = { queue: [], a: null, b: null, pick: {}, resolving: false };
+
+
 
     let bankFunds = 676767; // 遊戲庫資金
     const BORROW_LIMIT = 1500; // 每回合借貸上限
@@ -1335,8 +1384,18 @@
 
     function renderActionBar() {
       const bar = document.getElementById('actionBar');
-      if (phase === 'setup' || !setupDone) {
-        bar.innerHTML = '<span style="color:#c9a227;font-size:0.9rem;">開場順序決定中，請稍候…</span>';
+      if (phase === 'setup') {
+        bar.innerHTML = '<span style="color:#c9a227;font-size:0.9rem;">開場準備中，請稍候…</span>';
+        return;
+      }
+      if (phase === 'bid') {
+        bar.innerHTML = '<span style="color:#e8c547;font-size:0.95rem;font-weight:700;">買回合：喊價搶操作順序中…</span>';
+        return;
+      }
+      // 不是自己的回合：只顯示等待
+      if (!isMyTurn()) {
+        bar.innerHTML = `<span style="color:#e8c547;font-size:0.95rem;font-weight:700;">⏳ 目前輪到「${currentTurnName()}」操作，請等待…</span>
+          <button class="btn-red" onclick="endGameSettle()">結束遊戲結算</button>`;
         return;
       }
       if (phase === 'fluctuate') {
@@ -1347,7 +1406,8 @@
           `;
         } else {
           bar.innerHTML = `
-            <button class="btn-green" onclick="playCards()">出牌（完成後自動結束階段）</button>
+            <span style="color:#8ab4d8;font-size:0.85rem;">輪到你 · 波動出牌</span>
+            <button class="btn-green" onclick="playCards()">出牌（完成後自動結束）</button>
             <button class="btn-navy" style="opacity:0.45;" disabled id="btnEnd">請先出牌</button>
             <button class="btn-red" onclick="endGameSettle()">結束遊戲結算</button>
           `;
@@ -1355,11 +1415,12 @@
       } else {
         const rightsDisabled = round < 2;
         bar.innerHTML = `
+          <span style="color:#8ab4d8;font-size:0.85rem;">輪到你 · 買貨階段</span>
           <button class="btn-purple" onclick="openBorrowModal()">借貸</button>
           <button class="btn-red" onclick="openRepayModal()">還款</button>
           <button class="btn-navy" onclick="buyCardFromDeck()">買牌</button>
           <button class="btn-gold" ${rightsDisabled ? 'style="opacity:0.4;cursor:not-allowed;" disabled title="第二回合起才可購買物權"' : 'onclick="openBuyRightsModal()"'}>${rightsDisabled ? '購買物權（第2回合起）' : '購買物權'}</button>
-          <button class="btn-navy" onclick="endPhase()" id="btnEnd">結束本階段</button>
+          <button class="btn-navy" onclick="endPhase()" id="btnEnd">結束我的回合</button>
           <button class="btn-red" onclick="endGameSettle()">結束遊戲結算</button>
         `;
       }
@@ -1851,6 +1912,7 @@
     }
 
     function confirmBuy() {
+      if (!isMyTurn()) { showToast('還沒輪到你', 'error'); return; }
       const id = window._buyGoodId;
       const g = GOODS.find(x => x.id === id);
       const qty = readQty('buyQty');
@@ -1874,6 +1936,7 @@
     }
 
     function confirmSell() {
+      if (!isMyTurn()) { showToast('還沒輪到你', 'error'); return; }
       const id = window._sellGoodId;
       const g = GOODS.find(x => x.id === id);
       const qty = readQty('sellQty');
@@ -2201,6 +2264,7 @@
     }
 
     function playCards() {
+      if (!isMyTurn()) { showToast('還沒輪到你', 'error'); return; }
       if (phase !== 'fluctuate') {
         showToast('現在不是波動出牌階段', 'error');
         return;
@@ -2446,62 +2510,97 @@
       showToast(`已購買 ${g.name} ${pickValue > 0 ? '+' : ''}${pickValue}（${price}元，牌庫剩 ${totalDeckLeft()}）`, 'success');
     }
 
+    function settleJobIncomeFor(p) {
+      const income = pendingJobIncome;
+      const fees = jobFeesPaid;
+      const net = income - fees;
+      // 僅在自己結束買貨回合時結算自己的收成／抽成
+      if (p && p.id === myId) {
+        pendingJobIncome = 0;
+        jobFeesPaid = 0;
+        if (income > 0 || fees > 0) {
+          p.cash += net;
+          if (net > 0) showToast(`職業結算入帳 +${net}（收成 ${income} − 抽成 ${fees}）`, 'success');
+          else if (net < 0) showToast(`職業結算扣款 ${net}（收成 ${income} − 抽成 ${fees}）`, 'error');
+          else showToast(`職業結算 ±0（收成 ${income} − 抽成 ${fees}）`, 'success');
+        }
+      }
+    }
     function endPhase(fromRefillModal) {
       const p = me();
+      if (!isMyTurn()) {
+        showToast('還沒輪到你，請等待「' + currentTurnName() + '」操作完成', 'error');
+        return;
+      }
       if (mustRepayThisTurn && p.debt > 0) {
         showToast('請先完成最低還款，才能結束本階段', 'error');
         openRepayModal();
         return;
       }
-      // 波動階段：必須先出公開牌（私有購買牌不算完成出牌）
       if (phase === 'fluctuate' && !hasPlayedThisPhase) {
         showToast('波動階段須先出牌（自己＋隔壁公開組各 1 張）才能結束', 'error');
         return;
       }
 
       if (phase === 'buy') {
-        // 買貨階段結束：職業收成 − 職業抽成 → 入現金（可為負則扣現金）；兩者歸零
-        const income = pendingJobIncome;
-        const fees = jobFeesPaid;
-        const net = income - fees;
-        pendingJobIncome = 0;
-        jobFeesPaid = 0;
-        if (income > 0 || fees > 0) {
-          p.cash += net;
-          if (net > 0) {
-            showToast(`職業結算入帳 +${net}（收成 ${income} − 抽成 ${fees}）`, 'success');
-          } else if (net < 0) {
-            showToast(`職業結算扣款 ${net}（收成 ${income} − 抽成 ${fees}）`, 'error');
-          } else {
-            showToast(`職業結算 ±0（收成 ${income} − 抽成 ${fees}）`, 'success');
-          }
-        }
-        phase = 'fluctuate';
+        settleJobIncomeFor(p);
+        phaseDoneIds[myId] = true;
         hasPlayedThisPhase = false;
         selectedCards = [];
-        showToast('進入波動出牌階段（須出牌後才能結束）', 'success');
-      } else if (phase === 'fluctuate') {
-        // 新回合：若未結清本金，本回合付款進度歸零，下回合仍須再付 50%
-        if ((p.debtAnchor || 0) > 0 || (p.debt || 0) > 0) {
-          if (!p.debtAnchor || p.debtAnchor < p.debt) p.debtAnchor = p.debt;
-          p.debt = p.debtAnchor;
-          mustRepayThisTurn = true;
-          p.debtAtTurnStart = p.debtAnchor;
-          p.repaidThisTurn = 0;
+        // 下一位；若全員完成買貨 → 進入波動，從第一位開始
+        if (allPhaseDone()) {
+          phaseDoneIds = {};
+          phase = 'fluctuate';
+          hasPlayedThisPhase = false;
+          const first = turnOrder[0] || (room.players[0] && room.players[0].id);
+          currentTurnId = first;
+          showToast('全員買貨完成 → 進入波動出牌（從第一位開始）', 'success');
         } else {
-          mustRepayThisTurn = false;
-          p.debtAtTurnStart = 0;
-          p.repaidThisTurn = 0;
+          const nxt = nextTurnAfter(myId);
+          // 跳過已完成的
+          let guard = 0;
+          let cur = nxt;
+          while (phaseDoneIds[cur] && guard++ < 10) cur = nextTurnAfter(cur);
+          currentTurnId = cur;
+          showToast('你的買貨回合結束，交給「' + currentTurnName() + '」', 'success');
         }
-        round++;
-        phase = 'buy';
+      } else if (phase === 'fluctuate') {
+        phaseDoneIds[myId] = true;
         hasPlayedThisPhase = false;
         selectedCards = [];
-        resetRightsFees();
-        showToast(`第 ${round} 回合開始`, 'success');
-        if (round >= 2) showBuyRoundBanner();
+        if (allPhaseDone()) {
+          // 新回合買貨
+          room.players.forEach(pl => {
+            if ((pl.debtAnchor || 0) > 0 || (pl.debt || 0) > 0) {
+              if (!pl.debtAnchor || pl.debtAnchor < pl.debt) pl.debtAnchor = pl.debt;
+              pl.debt = pl.debtAnchor;
+            }
+          });
+          if ((p.debtAnchor || 0) > 0 || (p.debt || 0) > 0) {
+            mustRepayThisTurn = true;
+            p.debtAtTurnStart = p.debtAnchor || p.debt;
+            p.repaidThisTurn = 0;
+          } else {
+            mustRepayThisTurn = false;
+            p.debtAtTurnStart = 0;
+            p.repaidThisTurn = 0;
+          }
+          phaseDoneIds = {};
+          round++;
+          resetRightsFees();
+          showToast(`第 ${round} 回合 · 進入買回合（喊價搶順序）`, 'success');
+          if (isOnlineMode() && window.GameNet) GameNet.sendEvent('start_bid_round', {});
+          openBidRound();
+        } else {
+          let cur = nextTurnAfter(myId);
+          let guard = 0;
+          while (phaseDoneIds[cur] && guard++ < 10) cur = nextTurnAfter(cur);
+          currentTurnId = cur;
+          showToast('你的出牌結束，交給「' + currentTurnName() + '」', 'success');
+        }
       }
       render();
+      if (typeof syncPush === 'function') syncPush();
     }
 
     function checkWin() {
@@ -2744,6 +2843,33 @@
     // ===== 聯機同步 =====
 
     // ===== 開場等待與輪盤決定順序 =====
+
+    function isMyTurn() {
+      if (!setupDone) return false;
+      if (!currentTurnId) return true; // 尚未設定時不鎖（本機容錯）
+      return currentTurnId === myId;
+    }
+    function currentTurnName() {
+      const pl = (room.players || []).find(p => p.id === currentTurnId);
+      return pl ? pl.name : '—';
+    }
+    function nextTurnAfter(pid) {
+      const order = turnOrder.length ? turnOrder : (room.players || []).map(p => p.id);
+      if (!order.length) return null;
+      const idx = order.indexOf(pid);
+      const next = order[(idx < 0 ? 0 : idx + 1) % order.length];
+      return next;
+    }
+    function allPhaseDone() {
+      const order = turnOrder.length ? turnOrder : (room.players || []).map(p => p.id);
+      return order.length > 0 && order.every(id => phaseDoneIds[id]);
+    }
+    function setTurn(pid, sync) {
+      currentTurnId = pid;
+      if (sync !== false && typeof syncPush === 'function') syncPush();
+      render();
+    }
+
     function isOnlineMode() {
       return localStorage.getItem('onlineMode') === '1' && window.GameNet;
     }
@@ -2828,20 +2954,22 @@
       firstPlayerId = firstId;
       turnDir = dir || 'cw';
       turnOrder = buildOrderFromFirst(firstId, turnDir);
-      // 依 turnOrder 重排 room.players，讓隔壁共享符合順序
       const map = {};
       room.players.forEach(p => { map[p.id] = p; });
       room.players = turnOrder.map(id => map[id]).filter(Boolean);
       setupDone = true;
       phase = 'buy';
+      phaseDoneIds = {};
+      currentTurnId = turnOrder[0] || firstId;
       hideCinema();
-      render();
-      syncPush();
       const names = turnOrder.map(id => {
         const pl = room.players.find(p => p.id === id);
         return pl ? pl.name : id;
       }).join(' → ');
       showToast(`行動順序：${names}（${turnDir === 'cw' ? '順時針' : '逆時針'}）`, 'success');
+      render();
+      showBuyRoundBanner();
+      if (typeof syncPush === 'function') syncPush();
     }
     function hostRunOrderSequence() {
       // 僅房主執行動畫節奏並廣播（進入時已全員就緒並等待過 2 秒）
@@ -2885,18 +3013,174 @@
       }
       applyTurnSetup(firstPlayerId, dir);
     }
-    function showBuyRoundBanner() {
+
+    // ===== 買回合：喊價決定操作順序（與借貸無關）=====
+    function clearBidTimer() {
+      if (bidState.timerId) { clearInterval(bidState.timerId); bidState.timerId = null; }
+    }
+    function resetBidState() {
+      clearBidTimer();
+      bidState = { bids: {}, counts: {}, passed: {}, timer: 10, timerId: null, active: false };
+      (room.players || []).forEach(pl => {
+        bidState.bids[pl.id] = 0;
+        bidState.counts[pl.id] = 0;
+        bidState.passed[pl.id] = false;
+      });
+    }
+    function renderBidList() {
+      const box = document.getElementById('bidList');
+      if (!box) return;
+      const rows = (room.players || []).map(pl => {
+        const amt = bidState.bids[pl.id] || 0;
+        const n = bidState.counts[pl.id] || 0;
+        const pass = bidState.passed[pl.id] ? '（不喊了）' : '';
+        return `<div style="padding:4px 0;border-bottom:1px solid rgba(201,162,39,0.25);">
+          <strong>${pl.name}</strong>　出價 <span style="color:#9b2226;font-weight:800;">${amt}</span>
+         　喊了 ${n}/3 ${pass}</div>`;
+      }).join('');
+      box.innerHTML = rows || '尚無出價';
+      const meP = me();
+      const myAmt = bidState.bids[myId] || 0;
+      const myN = bidState.counts[myId] || 0;
+      const c = document.getElementById('bidCount');
+      const m = document.getElementById('myBidShow');
+      if (c) c.textContent = String(myN);
+      if (m) m.textContent = String(myAmt);
+    }
+    function startBidTimer() {
+      clearBidTimer();
+      bidState.timer = 10;
+      const el = document.getElementById('bidTimer');
+      if (el) el.textContent = '10';
+      bidState.timerId = setInterval(() => {
+        bidState.timer -= 1;
+        if (el) el.textContent = String(Math.max(0, bidState.timer));
+        if (bidState.timer <= 0) {
+          clearBidTimer();
+          finishBidding();
+        }
+      }, 1000);
+    }
+    function openBidRound() {
+      resetBidState();
+      bidState.active = true;
+      phase = 'bid';
+      showBuyRoundBanner(true);
+      const modal = document.getElementById('bidModal');
+      if (modal) modal.classList.add('show');
+      const inp = document.getElementById('bidInput');
+      if (inp) inp.value = '0';
+      renderBidList();
+      startBidTimer();
+      render();
+      if (typeof syncPush === 'function') syncPush();
+    }
+    function stepBid(delta) {
+      const inp = document.getElementById('bidInput');
+      if (!inp) return;
+      let v = parseInt(inp.value, 10) || 0;
+      v = Math.max(0, Math.min(1000, v + delta));
+      inp.value = String(v);
+    }
+    function submitBid() {
+      if (!bidState.active || phase !== 'bid') return;
+      if (bidState.passed[myId]) { showToast('你已選擇不喊了', 'error'); return; }
+      const n = bidState.counts[myId] || 0;
+      if (n >= 3) { showToast('最多只能喊 3 次', 'error'); return; }
+      const inp = document.getElementById('bidInput');
+      let v = parseInt(inp && inp.value, 10);
+      if (isNaN(v)) v = 0;
+      v = Math.max(0, Math.min(1000, v));
+      const prev = bidState.bids[myId] || 0;
+      if (v < prev) { showToast('新出價不能低於你目前的出價', 'error'); return; }
+      if (v === prev && n > 0) { showToast('請提高出價，或按不喊了', 'error'); return; }
+      // 只扣除「這次多喊的差額」
+      const diff = v - prev;
+      const p = me();
+      if (diff > 0) {
+        p.cash -= diff; // 可為負，顯示紅字
+      }
+      bidState.bids[myId] = v;
+      bidState.counts[myId] = n + 1;
+      renderBidList();
+      startBidTimer(); // 有人喊價就重數 10 秒
+      showToast(`你出價 ${v}（本階段已喊 ${bidState.counts[myId]}/3）`, 'success');
+      render();
+      if (isOnlineMode() && window.GameNet) {
+        GameNet.sendEvent('bid_update', { bids: bidState.bids, counts: bidState.counts, passed: bidState.passed });
+      }
+      if (typeof syncPush === 'function') syncPush();
+    }
+    function passBid() {
+      if (!bidState.active) return;
+      bidState.passed[myId] = true;
+      renderBidList();
+      showToast('你選擇本買回合不再喊價', 'success');
+      if (isOnlineMode() && window.GameNet) {
+        GameNet.sendEvent('bid_update', { bids: bidState.bids, counts: bidState.counts, passed: bidState.passed });
+      }
+      // 若全員都不喊了，提早結束
+      const allPassed = (room.players || []).every(pl => bidState.passed[pl.id] || (bidState.counts[pl.id] || 0) > 0);
+      // 不強制；等倒數
+      if (typeof syncPush === 'function') syncPush();
+    }
+    function finishBidding() {
+      if (!bidState.active) return;
+      bidState.active = false;
+      clearBidTimer();
+      const modal = document.getElementById('bidModal');
+      if (modal) modal.classList.remove('show');
+      // 依出價高到低排序；同價進入猜拳佇列（簡化：同價用玩家 id 穩定排序後，可手動猜拳）
+      const arr = (room.players || []).map(pl => ({
+        id: pl.id,
+        name: pl.name,
+        bid: bidState.bids[pl.id] || 0
+      }));
+      arr.sort((a, b) => {
+        if (b.bid !== a.bid) return b.bid - a.bid;
+        return a.id - b.id; // 暫時同價用 id；真猜拳在 rpsQueue
+      });
+      // 偵測同價群組
+      const ties = [];
+      for (let i = 0; i < arr.length - 1; i++) {
+        if (arr[i].bid === arr[i + 1].bid && arr[i].bid > 0) {
+          ties.push([arr[i], arr[i + 1]]);
+        }
+      }
+      turnOrder = arr.map(x => x.id);
+      const map = {};
+      room.players.forEach(p => { map[p.id] = p; });
+      room.players = turnOrder.map(id => map[id]).filter(Boolean);
+      phaseDoneIds = {};
+      currentTurnId = turnOrder[0] || myId;
+      setupDone = true;
+      phase = 'buy';
+      const names = arr.map(x => `${x.name}(${x.bid})`).join(' → ');
+      showToast('買回合結束，操作順序：' + names, 'success');
+      if (ties.length) {
+        showToast('有同價玩家，順序已暫定；可在之後加猜拳細分', 'success');
+      }
+      render();
+      if (typeof syncPush === 'function') syncPush();
+      // 若需要猜拳：簡化版自動以 id 排序已完成；完整猜拳 UI 可再擴
+    }
+
+    function showBuyRoundBanner(isBidAuction) {
       const el = document.getElementById('buyRoundBanner');
       if (!el) return;
+      const span = el.querySelector('span');
+      if (span) {
+        if (isBidAuction || phase === 'bid') {
+          span.textContent = '買回合！喊價搶順序';
+        } else {
+          const who = currentTurnName();
+          span.textContent = isMyTurn() ? '買貨階段！輪到你' : ('買貨階段！請等 ' + who);
+        }
+      }
       el.classList.remove('show');
       void el.offsetWidth;
       el.classList.add('show');
-      // 重組第二回合起的買回合順序：依上一輪結果或重新以第一位為基準
-      if (turnOrder.length && room.players) {
-        // 買回合：可依總資產高到低重排操作提示（不強制改共享隔壁）
-        // 這裡僅大字提示，順序維持 turnOrder
-      }
-      setTimeout(() => el.classList.remove('show'), 2200);
+      setTimeout(() => el.classList.remove('show'), 2000);
     }
     function beginSetupFlow() {
       if (setupDone) return;
@@ -2906,7 +3190,7 @@
         // 本機測試：視作全員就緒，2 秒後開抽
         (room.players || []).forEach(p => { readyPlayers[p.id] = true; });
         showCinema('等待玩家載入中…', '本機測試模式');
-        setTimeout(() => hostRunOrderSequence(), 2000);
+        setTimeout(() => { hideCinema(); openBidRound(); }, 1500);
         return;
       }
       showCinema('等待玩家載入中…', '請稍候，確認每位船員都已上船');
@@ -2927,9 +3211,13 @@
         started = true;
         if (force) {
           (room.players || []).forEach(p => { readyPlayers[p.id] = true; });
-          showCinema('等待玩家載入中…', '部分玩家逾時，即將開始…');
+          showCinema('等待玩家載入中…', '部分玩家逾時，即將開始買回合…');
         }
-        setTimeout(() => hostRunOrderSequence(), force ? 800 : 1500);
+        setTimeout(() => {
+          hideCinema();
+          if (isOnlineMode() && window.GameNet) GameNet.sendEvent('start_bid_round', {});
+          openBidRound();
+        }, force ? 800 : 1500);
       };
       setTimeout(() => tryStart(false), 500);
       let tries = 0;
@@ -2940,7 +3228,11 @@
         tryStart(false);
         const readyCount = (room.players || []).filter(p => readyPlayers[p.id]).length;
         const total = (room.players || []).length || 0;
-        showCinema('等待玩家載入中…', `已就緒 ${readyCount}/${total}（最多等約 8 秒）`);
+        const sub = document.getElementById('cinemaSub');
+        if (sub) {
+          sub.textContent = `已就緒 ${readyCount}/${total}（最多等約 8 秒）`;
+          sub.classList.add('show');
+        }
         // 約 8 秒後房主強制開始
         if (tries >= 16) {
           clearInterval(iv);
@@ -2968,6 +3260,8 @@
         turnDir: turnDir,
         setupDone: setupDone,
         firstPlayerId: firstPlayerId,
+        currentTurnId: currentTurnId,
+        phaseDoneIds: phaseDoneIds,
         ts: Date.now()
       };
     }
@@ -3003,6 +3297,8 @@
         if (state.turnDir) turnDir = state.turnDir;
         if (state.setupDone != null) setupDone = state.setupDone;
         if (state.firstPlayerId != null) firstPlayerId = state.firstPlayerId;
+        if (state.currentTurnId != null) currentTurnId = state.currentTurnId;
+        if (state.phaseDoneIds) phaseDoneIds = state.phaseDoneIds;
         if (setupDone) hideCinema();
         render();
       } finally {
@@ -3035,12 +3331,23 @@
         if (ev === 'player_ready') {
           readyPlayers[payload.playerId] = true;
           const names = (room.players || []).filter(p => readyPlayers[p.id]).map(p => p.name).join('、');
-          showCinema('等待玩家載入中…', `已就緒：${names || '…'}`);
+          const sub2 = document.getElementById('cinemaSub');
+          if (sub2) { sub2.textContent = `已就緒：${names || '…'}`; sub2.classList.add('show'); }
           const meP = me();
           const isHost = meP && (meP.isHost || meP.id === (room.hostId || 1));
           if (isHost && allPlayersReady() && !setupDone) {
             setTimeout(() => hostRunOrderSequence(), 2000);
           }
+        }
+        if (ev === 'start_bid_round') {
+          if (!bidState.active) openBidRound();
+        }
+        if (ev === 'bid_update' && payload) {
+          if (payload.bids) bidState.bids = payload.bids;
+          if (payload.counts) bidState.counts = payload.counts;
+          if (payload.passed) bidState.passed = payload.passed;
+          renderBidList();
+          startBidTimer();
         }
         if (ev === 'order_announce') {
           showCinema('抽取隨機玩家順序', '即將轉動輪盤決定第一位…');
