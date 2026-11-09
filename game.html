@@ -1401,6 +1401,7 @@
     let phaseDoneIds = {};      // 本階段已結束的玩家 id
     let seatOrder = [];         // 開場輪盤固定座位（共享隔壁用，整局不變）
     let buyPhaseDeadline = 0;   // 買貨階段截止時間戳
+    let turnDeadline = 0;       // 當前行動玩家截止（全員可見）
     let buyTimerId = null;
     let setupStarted = false;   // 防止開場流程重入閃爍
     let sessionStats = {
@@ -2760,7 +2761,7 @@
       const parts = order.map((id, i) => {
         const pl = (room.players || []).find(p => p.id === id || p.id === Number(id));
         const nm = pl ? pl.name : ('#' + id);
-        const now = (currentTurnId == id || currentTurnId == Number(id));
+        const now = sameId(currentTurnId, id);
         return now ? `<span class="now">▶ ${i + 1}.${nm}</span>` : `${i + 1}.${nm}`;
       });
       const phaseName = phase === 'buy' ? '買貨' : (phase === 'fluctuate' ? '波動' : (phase === 'bid' ? '買回合(喊價)' : phase));
@@ -2826,16 +2827,19 @@
           phase = 'fluctuate';
           hasPlayedThisPhase = false;
           const first = turnOrder[0] || (room.players[0] && room.players[0].id);
-          currentTurnId = first;
+          currentTurnId = Number(first);
+          turnDeadline = 0;
           showToast('全員買貨完成 → 進入波動出牌（從第一位開始）', 'success');
+          try { startBuyPhaseTimer(true); } catch(e) {}
         } else {
           const nxt = nextTurnAfter(myId);
-          // 跳過已完成的
           let guard = 0;
           let cur = nxt;
-          while (phaseDoneIds[cur] && guard++ < 10) cur = nextTurnAfter(cur);
-          currentTurnId = cur;
+          while ((phaseDoneIds[cur] || phaseDoneIds[String(cur)]) && guard++ < 10) cur = nextTurnAfter(cur);
+          currentTurnId = Number(cur);
+          turnDeadline = 0;
           showToast('你的買貨回合結束，交給「' + currentTurnName() + '」', 'success');
+          try { startBuyPhaseTimer(true); } catch(e) {}
         }
       } else if (phase === 'fluctuate') {
         phaseDoneIds[myId] = true;
@@ -2868,8 +2872,10 @@
           let cur = nextTurnAfter(myId);
           let guard = 0;
           while (phaseDoneIds[cur] && guard++ < 10) cur = nextTurnAfter(cur);
-          currentTurnId = cur;
+          currentTurnId = Number(cur);
+          turnDeadline = 0;
           showToast('你的出牌結束，交給「' + currentTurnName() + '」', 'success');
+          try { startBuyPhaseTimer(true); } catch(e) {}
         }
       }
       render();
@@ -2879,9 +2885,10 @@
           GameNet.sendEvent('turn_done', {
             playerId: myId,
             phaseDoneIds: phaseDoneIds,
-            currentTurnId: currentTurnId,
+            currentTurnId: Number(currentTurnId),
             phase: phase,
             round: round,
+            turnDeadline: turnDeadline,
             hasPlayedThisPhase: hasPlayedThisPhase
           });
         } catch (e) {}
@@ -3142,19 +3149,22 @@
 
     // ===== 開場等待與輪盤決定順序 =====
 
+    function sameId(a, b) {
+      return Number(a) === Number(b);
+    }
     function isMyTurn() {
       if (!setupDone) return false;
-      if (!currentTurnId) return true; // 尚未設定時不鎖（本機容錯）
-      return currentTurnId === myId;
+      if (currentTurnId == null || currentTurnId === '') return true;
+      return sameId(currentTurnId, myId);
     }
     function currentTurnName() {
-      const pl = (room.players || []).find(p => p.id === currentTurnId);
+      const pl = (room.players || []).find(p => sameId(p.id, currentTurnId));
       return pl ? pl.name : '—';
     }
     function nextTurnAfter(pid) {
-      const order = turnOrder.length ? turnOrder : (room.players || []).map(p => p.id);
+      const order = (turnOrder.length ? turnOrder : (room.players || []).map(p => p.id)).map(Number);
       if (!order.length) return null;
-      const idx = order.indexOf(pid);
+      const idx = order.indexOf(Number(pid));
       const next = order[(idx < 0 ? 0 : idx + 1) % order.length];
       return next;
     }
@@ -3265,7 +3275,7 @@
       setupDone = true;
       phase = 'buy';
       phaseDoneIds = {};
-      currentTurnId = turnOrder[0] || firstId;
+      currentTurnId = Number(turnOrder[0] || firstId);
       hideCinema();
       const names = turnOrder.map(id => {
         const pl = room.players.find(p => p.id === id);
@@ -3387,63 +3397,71 @@
       const el = document.getElementById('buyTimerHud');
       if (el) el.remove();
     }
-    function startBuyPhaseTimer() {
-      // 僅在「輪到自己」的買貨回合計時；換人就重算 3 分鐘
-      clearBuyPhaseTimer();
-      if (phase !== 'buy') return;
-      if (!isMyTurn()) {
-        // 顯示等待中的倒數狀態（不計罰）
-        let hud = document.getElementById('buyTimerHud');
-        if (!hud) {
-          hud = document.createElement('div');
-          hud.id = 'buyTimerHud';
-          hud.style.cssText = 'position:fixed;top:12px;right:12px;z-index:50;background:rgba(12,24,40,0.88);color:#f3e5c5;padding:8px 12px;border-radius:10px;border:1px solid #c9a227;font-size:0.85rem;';
-          document.body.appendChild(hud);
-        }
-        hud.textContent = '等待「' + currentTurnName() + '」操作中';
-        hud.style.color = '#8ab4d8';
-        return;
-      }
-      timerForPlayerId = currentTurnId;
-      buyPhaseDeadline = Date.now() + 3 * 60 * 1000;
+    function ensureTimerHud() {
       let hud = document.getElementById('buyTimerHud');
       if (!hud) {
         hud = document.createElement('div');
         hud.id = 'buyTimerHud';
-        hud.style.cssText = 'position:fixed;top:12px;right:12px;z-index:50;background:rgba(12,24,40,0.88);color:#f3e5c5;padding:8px 12px;border-radius:10px;border:1px solid #c9a227;font-size:0.85rem;';
+        hud.style.cssText = 'position:fixed;top:12px;right:12px;z-index:50;background:rgba(12,24,40,0.88);color:#f3e5c5;padding:8px 12px;border-radius:10px;border:1px solid #c9a227;font-size:0.85rem;min-width:140px;text-align:center;';
         document.body.appendChild(hud);
       }
-      hud.dataset.lastOt = '0';
+      return hud;
+    }
+    function startBuyPhaseTimer(forceNewDeadline) {
+      // 每位玩家各自 3 分鐘；換人重計；全員都看得到當前玩家剩餘秒數
+      if (buyTimerId) { clearInterval(buyTimerId); buyTimerId = null; }
+      if (phase !== 'buy' && phase !== 'fluctuate') {
+        clearBuyPhaseTimer();
+        return;
+      }
+      const hud = ensureTimerHud();
+      const whoId = currentTurnId;
+      const whoName = currentTurnName();
+      // 換人或強制：由「當前回合玩家」建立 deadline 並同步
+      if (forceNewDeadline || !sameId(timerForPlayerId, whoId) || !turnDeadline) {
+        timerForPlayerId = whoId;
+        if (isMyTurn() || forceNewDeadline) {
+          turnDeadline = Date.now() + 3 * 60 * 1000;
+          buyPhaseDeadline = turnDeadline;
+          if (typeof syncPush === 'function') syncPush();
+        }
+      }
+      hud.dataset.lastOt = hud.dataset.lastOt || '0';
       buyTimerId = setInterval(() => {
-        if (phase !== 'buy') { clearBuyPhaseTimer(); return; }
-        // 換人了 → 重開計時
-        if (currentTurnId !== timerForPlayerId) {
-          startBuyPhaseTimer();
+        if (phase !== 'buy' && phase !== 'fluctuate') { clearBuyPhaseTimer(); return; }
+        if (!sameId(currentTurnId, timerForPlayerId)) {
+          startBuyPhaseTimer(true);
           return;
         }
-        if (!isMyTurn()) { startBuyPhaseTimer(); return; }
-        const left = buyPhaseDeadline - Date.now();
+        const dl = turnDeadline || buyPhaseDeadline;
+        if (!dl) {
+          hud.textContent = '等待「' + currentTurnName() + '」…';
+          hud.style.color = '#8ab4d8';
+          return;
+        }
+        const left = dl - Date.now();
+        const labelWho = isMyTurn() ? '你' : ('「' + currentTurnName() + '」');
         if (left >= 0) {
           const m = Math.floor(left / 60000);
           const s = Math.floor((left % 60000) / 1000);
-          hud.textContent = `你的回合時限 ${m}:${String(s).padStart(2,'0')}`;
-          hud.style.color = '#f3e5c5';
+          hud.textContent = labelWho + ' 剩餘 ' + m + ':' + String(s).padStart(2,'0');
+          hud.style.color = left < 30000 ? '#ffcc80' : '#f3e5c5';
         } else {
           const overtimeMin = Math.ceil((-left) / 60000);
-          hud.textContent = `你的超時 ${overtimeMin} 分 · -${overtimeMin * 100}`;
+          hud.textContent = labelWho + ' 已超時 ' + overtimeMin + ' 分';
           hud.style.color = '#ff8a80';
-          if (hud.dataset.lastOt !== String(overtimeMin)) {
+          if (isMyTurn() && hud.dataset.lastOt !== String(overtimeMin)) {
             hud.dataset.lastOt = String(overtimeMin);
-            const p = me();
-            if (p && isMyTurn()) {
-              p.cash -= 100;
-              showToast(`回合超時，扣 100（第 ${overtimeMin} 分鐘）`, 'error');
+            const pl = me();
+            if (pl) {
+              pl.cash -= 100;
+              showToast('回合超時，扣 100（第 ' + overtimeMin + ' 分鐘）', 'error');
               render();
               if (typeof syncPush === 'function') syncPush();
             }
           }
         }
-      }, 1000);
+      }, 250);
     }
 
     function openBidRound() {
@@ -3578,57 +3596,83 @@
       el.classList.add('show');
       setTimeout(() => el.classList.remove('show'), 2000);
     }
+    let setupCountdownStarted = false;
+    function markReady() {
+      if (setupDone || setupCountdownStarted) return;
+      readyPlayers[myId] = true;
+      if (isOnlineMode() && window.GameNet) {
+        try { GameNet.sendEvent('player_ready', { playerId: myId }); } catch (e) {}
+      }
+      updateReadyCinema();
+      maybeStartAfterAllReady();
+    }
+    function updateReadyCinema() {
+      if (setupDone || setupCountdownStarted) return;
+      const total = (room.players || []).length || 0;
+      const readyCount = (room.players || []).filter(p => readyPlayers[p.id] || readyPlayers[String(p.id)]).length;
+      const iAmReady = !!(readyPlayers[myId] || readyPlayers[String(myId)]);
+      const sub = `已準備 ${readyCount}/${total}` + (iAmReady ? '（你已準備）' : '（請按下準備）');
+      if (iAmReady) {
+        showCinema('等待全員準備', sub);
+      } else {
+        showCinema('等待全員準備', sub, {
+          actionsHtml: '<button class="cw" type="button" id="btnReady" style="min-width:160px;font-size:1.2rem;">✓ 準備</button>'
+        });
+        setTimeout(() => {
+          const b = document.getElementById('btnReady');
+          if (b) b.onclick = () => markReady();
+        }, 30);
+      }
+    }
+    function maybeStartAfterAllReady() {
+      if (setupDone || setupCountdownStarted) return;
+      if (!allPlayersReady()) return;
+      // 任一客戶端發現全員準備即可啟動倒數（用旗標防重入）
+      setupCountdownStarted = true;
+      if (isOnlineMode() && window.GameNet) {
+        try { GameNet.sendEvent('all_ready_countdown', {}); } catch (e) {}
+      }
+      runPreRouletteCountdown();
+    }
+    function runPreRouletteCountdown() {
+      setupCountdownStarted = true;
+      showCinema('全員準備完成', '3 秒後開始倒數…');
+      setTimeout(() => {
+        let n = 5;
+        showCinema(String(n), '即將轉動輪盤');
+        const iv = setInterval(() => {
+          n -= 1;
+          if (n <= 0) {
+            clearInterval(iv);
+            hideCinema();
+            // 僅房主發動輪盤，避免多人同時轉
+            const meP = me();
+            const isHost = meP && (meP.isHost || meP.id === (room.hostId || 1));
+            if (isHost || !isOnlineMode()) {
+              hostRunOrderSequence();
+            } else {
+              showCinema('輪盤即將開始', '請稍候…');
+            }
+            return;
+          }
+          showCinema(String(n), '即將轉動輪盤');
+        }, 1000);
+      }, 3000);
+    }
     function beginSetupFlow() {
       if (setupDone || setupStarted) return;
       setupStarted = true;
       phase = 'setup';
+      setupCountdownStarted = false;
+      readyPlayers = {};
       const online = isOnlineMode();
       if (!online) {
         (room.players || []).forEach(p => { readyPlayers[p.id] = true; });
-        showCinema('等待玩家載入中…', '本機測試模式');
-        // 第一回合：輪盤定座位與操作序，沒有買回合（喊價）
-        setTimeout(() => hostRunOrderSequence(), 1500);
+        showCinema('本機測試', '即將開始…');
+        setTimeout(() => runPreRouletteCountdown(), 800);
         return;
       }
-      showCinema('等待玩家載入中…', '請稍候，確認每位船員都已上船');
-      readyPlayers[myId] = true;
-      const sendReady = () => {
-        if (setupDone || !window.GameNet) return;
-        try { GameNet.sendEvent('player_ready', { playerId: myId }); } catch (e) {}
-      };
-      sendReady();
-      let started = false;
-      const tryStart = (force) => {
-        if (setupDone || started) return;
-        const meP = me();
-        const isHost = meP && (meP.isHost || meP.id === (room.hostId || 1));
-        if (!isHost) return;
-        if (!force && !allPlayersReady()) return;
-        started = true;
-        if (force) {
-          (room.players || []).forEach(p => { readyPlayers[p.id] = true; });
-          const sub = document.getElementById('cinemaSub');
-          if (sub) sub.textContent = '部分玩家逾時，即將開輪盤…';
-        }
-        // 第一回合只跑輪盤定序，不進買回合喊價
-        setTimeout(() => hostRunOrderSequence(), force ? 600 : 1200);
-      };
-      setTimeout(() => tryStart(false), 500);
-      let tries = 0;
-      const iv = setInterval(() => {
-        if (setupDone) { clearInterval(iv); return; }
-        tries++;
-        sendReady();
-        tryStart(false);
-        const readyCount = (room.players || []).filter(p => readyPlayers[p.id]).length;
-        const total = (room.players || []).length || 0;
-        const sub = document.getElementById('cinemaSub');
-        if (sub) sub.textContent = `已就緒 ${readyCount}/${total}`;
-        if (tries >= 16) {
-          clearInterval(iv);
-          tryStart(true);
-        }
-      }, 500);
+      updateReadyCinema();
     }
 
 
@@ -3653,6 +3697,8 @@
         currentTurnId: currentTurnId,
         phaseDoneIds: phaseDoneIds,
         seatOrder: seatOrder,
+        turnDeadline: turnDeadline,
+        currentTurnId: currentTurnId,
         ts: Date.now()
       };
     }
@@ -3707,6 +3753,8 @@
         if (state.firstPlayerId != null) firstPlayerId = state.firstPlayerId;
         if (state.currentTurnId != null) currentTurnId = state.currentTurnId;
         if (state.seatOrder) seatOrder = state.seatOrder;
+        if (state.turnDeadline) turnDeadline = state.turnDeadline;
+        if (state.currentTurnId != null) currentTurnId = Number(state.currentTurnId);
         // 若目前回合對象已結束，跳到下一位
         if (currentTurnId && isPhaseDone(currentTurnId) && !allPhaseDone()) {
           let cur = nextTurnAfter(currentTurnId);
@@ -3743,26 +3791,27 @@
       GameNet.on('game_event', (d) => {
         const ev = d.event;
         const payload = d.payload || {};
+        if (ev === 'all_ready_countdown') {
+          if (!setupDone && !setupCountdownStarted) runPreRouletteCountdown();
+        }
         if (ev === 'player_ready') {
-          readyPlayers[payload.playerId] = true;
-          const names = (room.players || []).filter(p => readyPlayers[p.id]).map(p => p.name).join('、');
-          const sub2 = document.getElementById('cinemaSub');
-          if (sub2) { sub2.textContent = `已就緒：${names || '…'}`; sub2.classList.add('show'); }
-          const meP = me();
-          const isHost = meP && (meP.isHost || meP.id === (room.hostId || 1));
-          if (isHost && allPlayersReady() && !setupDone) {
-            setTimeout(() => hostRunOrderSequence(), 2000);
+          if (payload && payload.playerId != null) {
+            readyPlayers[payload.playerId] = true;
+            readyPlayers[Number(payload.playerId)] = true;
           }
+          updateReadyCinema();
+          maybeStartAfterAllReady();
         }
         if (ev === 'play_reveal' && payload) {
           showPlayReveal(payload.name, payload.cards || []);
         }
         if (ev === 'turn_done' && payload) {
           if (payload.phaseDoneIds) phaseDoneIds = Object.assign({}, phaseDoneIds, payload.phaseDoneIds);
-          if (payload.currentTurnId != null) currentTurnId = payload.currentTurnId;
+          if (payload.currentTurnId != null) currentTurnId = Number(payload.currentTurnId);
           if (payload.phase) phase = payload.phase;
           if (payload.round != null) round = payload.round;
-          if (payload.hasPlayedThisPhase != null && payload.playerId === myId) hasPlayedThisPhase = payload.hasPlayedThisPhase;
+          if (payload.turnDeadline) turnDeadline = payload.turnDeadline;
+          if (payload.hasPlayedThisPhase != null && sameId(payload.playerId, myId)) hasPlayedThisPhase = payload.hasPlayedThisPhase;
           // 若同步後發現全員完成且自己是目前應操作者或房主，推進（防止卡回合）
           if (allPhaseDone()) {
             const meP = me();
