@@ -2826,11 +2826,23 @@
           phaseDoneIds = {};
           phase = 'fluctuate';
           hasPlayedThisPhase = false;
-          const first = turnOrder[0] || (room.players[0] && room.players[0].id);
+          // 波動一律從 turnOrder[0] 開始（全端同一 turnOrder）
+          const first = (turnOrder.map(Number)[0]) || Number(room.players[0] && room.players[0].id);
           currentTurnId = Number(first);
           turnDeadline = 0;
           showToast('全員買貨完成 → 進入波動出牌（從第一位開始）', 'success');
           try { startBuyPhaseTimer(true); } catch(e) {}
+          if (isOnlineMode() && window.GameNet) {
+            try {
+              GameNet.sendEvent('phase_advance', {
+                phase: 'fluctuate',
+                round: round,
+                currentTurnId: currentTurnId,
+                turnOrder: turnOrder.map(Number),
+                phaseDoneIds: {}
+              });
+            } catch (e) {}
+          }
         } else {
           const nxt = nextTurnAfter(myId);
           let guard = 0;
@@ -3255,9 +3267,11 @@
       document.getElementById('rouletteCenter').textContent = (players[idx] && players[idx].name) || '?';
     }
     function buildOrderFromFirst(firstId, dir) {
-      const ids = (room.players || []).map(p => p.id);
+      // 以玩家 id 數字排序為「座位環」，避免各端 room.players 陣列順序不同導致操作序相反
+      const ids = (room.players || []).map(p => Number(p.id)).filter(id => !isNaN(id));
+      ids.sort((a, b) => a - b);
       if (!ids.length) return [];
-      let i = ids.indexOf(firstId);
+      let i = ids.indexOf(Number(firstId));
       if (i < 0) i = 0;
       const order = [];
       for (let k = 0; k < ids.length; k++) {
@@ -3267,24 +3281,38 @@
       return order;
     }
     function applyTurnSetup(firstId, dir) {
-      firstPlayerId = firstId;
+      firstPlayerId = Number(firstId);
       turnDir = dir || 'cw';
-      turnOrder = buildOrderFromFirst(firstId, turnDir);
-      // 座位序固定整局（共享牌隔壁），之後買回合只改操作序 turnOrder
+      turnOrder = buildOrderFromFirst(firstPlayerId, turnDir).map(Number);
+      // 座位序固定整局（共享隔壁用）
       if (!seatOrder.length) seatOrder = turnOrder.slice();
       setupDone = true;
       phase = 'buy';
       phaseDoneIds = {};
-      currentTurnId = Number(turnOrder[0] || firstId);
+      currentTurnId = Number(turnOrder[0] || firstPlayerId);
+      turnDeadline = 0;
       hideCinema();
       const names = turnOrder.map(id => {
-        const pl = room.players.find(p => p.id === id);
+        const pl = room.players.find(p => sameId(p.id, id));
         return pl ? pl.name : id;
       }).join(' → ');
       showToast(`第1回合操作序：${names}`, 'success');
-      startBuyPhaseTimer();
+      startBuyPhaseTimer(true);
       render();
       if (typeof syncPush === 'function') syncPush();
+      // 明確廣播權威順序，避免各端自己推導不一致
+      if (isOnlineMode() && window.GameNet) {
+        try {
+          GameNet.sendEvent('order_commit', {
+            turnOrder: turnOrder,
+            seatOrder: seatOrder,
+            firstPlayerId: firstPlayerId,
+            turnDir: turnDir,
+            currentTurnId: currentTurnId,
+            phase: 'buy'
+          });
+        } catch (e) {}
+      }
     }
     function hostRunOrderSequence() {
       if (setupDone) return;
@@ -3566,7 +3594,7 @@
         if (b.bid !== a.bid) return b.bid - a.bid;
         return a.rand - b.rand; // 同價隨機
       });
-      turnOrder = arr.map(x => x.id);
+      turnOrder = arr.map(x => Number(x.id));
       // 不改 seatOrder、不重排 room.players（共享隔壁固定）
       phaseDoneIds = {};
       currentTurnId = turnOrder[0] || myId;
@@ -3747,7 +3775,7 @@
         if (state.rightsSoldThisRound != null) rightsSoldThisRound = state.rightsSoldThisRound;
         if (state.mustRepayThisTurn != null) mustRepayThisTurn = state.mustRepayThisTurn;
         if (state.hasPlayedThisPhase != null) hasPlayedThisPhase = state.hasPlayedThisPhase;
-        if (state.turnOrder) turnOrder = state.turnOrder;
+        if (state.turnOrder) turnOrder = state.turnOrder.map(Number);
         if (state.turnDir) turnDir = state.turnDir;
         if (state.setupDone != null) setupDone = state.setupDone;
         if (state.firstPlayerId != null) firstPlayerId = state.firstPlayerId;
@@ -3805,6 +3833,17 @@
         if (ev === 'play_reveal' && payload) {
           showPlayReveal(payload.name, payload.cards || []);
         }
+        if (ev === 'phase_advance' && payload) {
+          if (payload.turnOrder) turnOrder = payload.turnOrder.map(Number);
+          if (payload.phase) phase = payload.phase;
+          if (payload.round != null) round = payload.round;
+          if (payload.currentTurnId != null) currentTurnId = Number(payload.currentTurnId);
+          phaseDoneIds = payload.phaseDoneIds || {};
+          hasPlayedThisPhase = false;
+          turnDeadline = 0;
+          try { startBuyPhaseTimer(true); } catch(e) {}
+          render();
+        }
         if (ev === 'turn_done' && payload) {
           if (payload.phaseDoneIds) phaseDoneIds = Object.assign({}, phaseDoneIds, payload.phaseDoneIds);
           if (payload.currentTurnId != null) currentTurnId = Number(payload.currentTurnId);
@@ -3812,14 +3851,7 @@
           if (payload.round != null) round = payload.round;
           if (payload.turnDeadline) turnDeadline = payload.turnDeadline;
           if (payload.hasPlayedThisPhase != null && sameId(payload.playerId, myId)) hasPlayedThisPhase = payload.hasPlayedThisPhase;
-          // 若同步後發現全員完成且自己是目前應操作者或房主，推進（防止卡回合）
-          if (allPhaseDone()) {
-            const meP = me();
-            const isHost = meP && (meP.isHost || meP.id === (room.hostId || 1));
-            if (isHost || currentTurnId === myId) {
-              // 由持有最新狀態的客戶端推進一次
-            }
-          }
+          try { startBuyPhaseTimer(false); } catch(e) {}
           render();
         }
         if (ev === 'game_end_settle') {
@@ -3861,6 +3893,20 @@
         }
         if (ev === 'order_dir') {
           applyTurnSetup(payload.firstId, payload.dir);
+        }
+        if (ev === 'order_commit' && payload) {
+          if (payload.turnOrder) turnOrder = payload.turnOrder.map(Number);
+          if (payload.seatOrder) seatOrder = payload.seatOrder.map(Number);
+          if (payload.firstPlayerId != null) firstPlayerId = Number(payload.firstPlayerId);
+          if (payload.turnDir) turnDir = payload.turnDir;
+          if (payload.currentTurnId != null) currentTurnId = Number(payload.currentTurnId);
+          if (payload.phase) phase = payload.phase;
+          setupDone = true;
+          phaseDoneIds = {};
+          turnDeadline = 0;
+          hideCinema();
+          startBuyPhaseTimer(true);
+          render();
         }
       });
 
