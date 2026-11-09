@@ -159,6 +159,12 @@
         0 0 10px rgba(255,196,60,0.75),
         0 0 2px #000;
     }
+    .profile-title-banner .pt-text.style-gold { color:#ffe566; text-shadow:0 0 12px #c9a227, 0 2px 0 #5a3a10; letter-spacing:0.28em; }
+    .profile-title-banner .pt-text.style-purple { color:#e0b3ff; text-shadow:0 0 14px #9b30ff, 0 2px 0 #2a0040; letter-spacing:0.2em; }
+    .profile-title-banner .pt-text.style-holy { color:#fff8dc; text-shadow:0 0 16px #fff, 0 0 8px #ffd700; letter-spacing:0.22em; }
+    .profile-title-banner .pt-text.style-debt { color:#ffcc80; text-shadow:0 0 10px #8b4513, 0 2px 0 #3d2410; letter-spacing:0.18em; }
+    .profile-title-banner .pt-text.style-storm { color:#ffeb3b; text-shadow:0 0 14px #ff5722, 0 0 6px #fff; letter-spacing:0.2em; }
+    .profile-title-banner .pt-text.style-fancy { color:#ffd700; text-shadow:0 0 12px #c0a060, 0 2px 0 #4a3000; font-style:italic; letter-spacing:0.24em; }
     .pc-title-chip {
       margin-top: 3px; font-size: 0.65rem; font-weight: 700;
       letter-spacing: 0.08em; color: #ffe9a8;
@@ -663,7 +669,60 @@
       100% { opacity: 1; transform: scale(1); }
     }
 
-  </style>
+  
+    .game-confirm-mask {
+      position: fixed; inset: 0; z-index: 200;
+      background: rgba(6,14,24,0.72);
+      display: none; align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    .game-confirm-mask.show { display: flex; }
+    .game-confirm-box {
+      width: min(360px, 92vw);
+      background: linear-gradient(160deg, #f3e5c5, #e6d4a8);
+      border: 3px solid #c9a227; border-radius: 16px;
+      padding: 22px 18px; text-align: center;
+      box-shadow: 0 16px 40px rgba(0,0,0,0.45);
+      color: #1a120b;
+    }
+    .game-confirm-box h3 { margin: 0 0 10px; color: #3d2414; font-size: 1.15rem; }
+    .game-confirm-box p { margin: 0 0 16px; font-size: 0.95rem; line-height: 1.45; color: #5a3a22; }
+    .game-confirm-actions { display: flex; gap: 10px; }
+    .game-confirm-actions button { flex: 1; padding: 12px; border-radius: 12px; font-weight: 700; font-size: 1rem; border: none; cursor: pointer; }
+    .gc-ok { background: linear-gradient(180deg,#e8c547,#c9a227); color: #2c1810; }
+    .gc-cancel { background: #0b1c2c; color: #f3e5c5; border: 1px solid #c9a227 !important; }
+    .play-reveal {
+      position: fixed; inset: 0; z-index: 120;
+      display: none; align-items: center; justify-content: center;
+      background: rgba(6,14,24,0.55); pointer-events: none;
+    }
+    .play-reveal.show { display: flex; }
+    .play-reveal-inner {
+      text-align: center; color: #f3e5c5;
+      animation: revealIn 0.55s ease forwards;
+    }
+    .play-reveal-inner .who { font-size: 1.15rem; color: #e8c547; margin-bottom: 12px; font-weight: 700; }
+    .play-reveal-cards { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .play-reveal-cards .rc {
+      min-width: 88px; padding: 14px 12px; border-radius: 12px;
+      background: linear-gradient(160deg,#1a3a55,#0c1e30);
+      border: 2px solid #c9a227; font-size: 1.35rem; font-weight: 800;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+    }
+    .play-reveal-cards .rc.plus { color: #7dcea0; }
+    .play-reveal-cards .rc.minus { color: #f1948a; }
+    @keyframes revealIn {
+      from { opacity: 0; transform: translateY(16px) scale(0.92); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .order-strip {
+      background: rgba(12,28,48,0.9); border: 1px solid rgba(201,162,39,0.45);
+      border-radius: 12px; padding: 8px 12px; margin-bottom: 10px;
+      color: #f3e5c5; font-size: 0.82rem; line-height: 1.4;
+    }
+    .order-strip strong { color: #e8c547; }
+    .order-strip .now { color: #7dcea0; font-weight: 800; }
+    </style>
 </head>
 <body>
   <div class="toast" id="toast"></div>
@@ -718,6 +777,7 @@
       </div>
     </div>
 
+    <div class="order-strip" id="orderStrip">操作順序：—</div>
     <div class="must-repay-bar" id="mustRepayBar">
       ⚠ 你有未償還的最低債務，必須先還款才能結束回合
     </div>
@@ -755,7 +815,7 @@
     <div class="hand-section">
       <div class="section-title" id="myCardsTitle">我的公開牌組</div>
       <div class="cards-row" id="myCards"></div>
-      <div class="section-title" style="margin-top:12px;" id="neighborCardsTitle">隔壁可共享牌組</div>
+      <div class="section-title" style="margin-top:12px;" id="neighborCardsTitle">副牌組</div>
       <div class="cards-row" id="neighborCards"></div>
       <div class="section-title" style="margin-top:12px;">私有購買牌</div>
       <div class="cards-row" id="privateCards"></div>
@@ -873,7 +933,7 @@
       <p>要補滿 8 張繼續遊戲，還是結束遊戲並結算排名？</p>
       <div class="modal-actions">
         <button class="btn-gold" onclick="refillCards()">補牌繼續</button>
-        <button class="btn-red" onclick="endGameSettle()">結束遊戲結算</button>
+        <button class="btn-red" onclick="requestEndGame()">結束遊戲結算</button>
       </div>
     </div>
   </div>
@@ -947,6 +1007,22 @@
 
 
   <!-- 開場等待 / 輪盤 -->
+  <div class="game-confirm-mask" id="gameConfirmMask">
+    <div class="game-confirm-box">
+      <h3 id="gcTitle">確認</h3>
+      <p id="gcMsg">確定嗎？</p>
+      <div class="game-confirm-actions">
+        <button type="button" class="gc-ok" id="gcOk">確定</button>
+        <button type="button" class="gc-cancel" id="gcCancel">取消</button>
+      </div>
+    </div>
+  </div>
+  <div class="play-reveal" id="playReveal">
+    <div class="play-reveal-inner">
+      <div class="who" id="playRevealWho">玩家出牌</div>
+      <div class="play-reveal-cards" id="playRevealCards"></div>
+    </div>
+  </div>
   <div class="cinema-mask" id="cinemaMask">
     <div class="cinema-title" id="cinemaTitle">等待玩家載入中…</div>
     <div class="cinema-sub" id="cinemaSub"></div>
@@ -964,16 +1040,16 @@
   <div class="modal-mask" id="bidModal">
     <div class="modal" style="max-width:440px;text-align:center;">
       <h3 style="color:#c9a227;">買回合 · 喊價搶順序</h3>
-      <p style="font-size:0.9rem;color:#5a3a22;margin-bottom:8px;">買回合＝喊價搶操作順序（不是買貨）。高價先手；同價隨機。50～500，階梯 50。立刻扣現金。</p>
+      <p style="font-size:0.9rem;color:#5a3a22;margin-bottom:8px;">買回合＝喊價搶操作順序（不是買貨）。高價先手；同價隨機。最低 50、無上限，階梯 50。立刻扣現金。</p>
       <p style="font-size:1.1rem;">倒數 <strong id="bidTimer" style="color:#9b2226;">10</strong> 秒</p>
       <div id="bidList" style="text-align:left;margin:12px 0;max-height:160px;overflow:auto;font-size:0.9rem;"></div>
       <p style="font-size:0.85rem;">你已喊 <strong id="bidCount">0</strong>／3 次　目前出價：<strong id="myBidShow">0</strong></p>
       <div class="qty-control" style="justify-content:center;">
         <button type="button" class="qty-btn" onclick="stepBid(-50)">−</button>
-        <input class="qty-input" id="bidInput" inputmode="numeric" value="0" style="width:100px;" />
+        <input class="qty-input" id="bidInput" inputmode="numeric" value="0" style="width:100px;" onblur="onBidBlur()" onchange="onBidBlur()" />
         <button type="button" class="qty-btn" onclick="stepBid(50)">＋</button>
       </div>
-      <p class="qty-hint">50～500（每次 +50），共可喊 3 次</p>
+      <p class="qty-hint">最低 50、無上限（每次 +50），共可喊 3 次</p>
       <div class="modal-actions">
         <button class="btn-gold" onclick="submitBid()">喊價</button>
         <button class="btn-navy" onclick="passBid()">不喊了</button>
@@ -1028,12 +1104,12 @@
   <script src="net.js"></script>
   <script>
     const GOODS = [
-      { id: 'cotton', name: '棉花', icon: '☁️', price: 150, stock: 20 },
-      { id: 'coal', name: '煤炭', icon: '🪨', price: 150, stock: 20 },
-      { id: 'tea', name: '茶葉', icon: '🍵', price: 150, stock: 20 },
-      { id: 'coffee', name: '咖啡', icon: '☕', price: 150, stock: 20 },
-      { id: 'wheat', name: '小麥', icon: '🌾', price: 150, stock: 20 },
-      { id: 'corn', name: '玉米', icon: '🌽', price: 150, stock: 20 }
+      { id: 'cotton', name: '綠帽', icon: '🧢', price: 150, stock: 12 },
+      { id: 'coal', name: '潤滑油', icon: '🛢️', price: 150, stock: 12 },
+      { id: 'tea', name: '痘痘貼', icon: '🩹', price: 150, stock: 12 },
+      { id: 'coffee', name: '紅姐口罩', icon: '😷', price: 150, stock: 12 },
+      { id: 'wheat', name: '黑人服務', icon: '🛎️', price: 150, stock: 12 },
+      { id: 'corn', name: '五老星徽章', icon: '⭐', price: 150, stock: 12 }
     ];
     // 原始設計：±8±6±4±2，每貨每點 2 張 → 6×8×2 = 96
     const CARD_VALUES = [8, 6, 4, 2, -2, -4, -6, -8];
@@ -1236,6 +1312,12 @@
     const room = JSON.parse(localStorage.getItem('currentRoom') || '{}');
     const myId = parseInt(localStorage.getItem('myPlayerId') || '1');
     const TITLE_DEFS = {
+      victory_phantom: { id:'victory_phantom', name:'勝利幻影者', banner:'assets/titles/victory_phantom.png', style:'gold', hint:'單局淨資產≥8000但未奪冠' },
+      finance_reaper: { id:'finance_reaper', name:'金融死神', banner:'assets/titles/finance_reaper.png', style:'purple', hint:'職業能力使他人破產或欠債' },
+      true_rights_king: { id:'true_rights_king', name:'真物權主宰王', banner:'assets/titles/true_rights_king.png', style:'holy', hint:'單局持有5種物權' },
+      debt_king: { id:'debt_king', name:'史上最強老賴', banner:'assets/titles/debt_king.png', style:'debt', hint:'累計欠債總額≥2000' },
+      card_storm: { id:'card_storm', name:'炒牌風暴中心', banner:'assets/titles/card_storm.png', style:'storm', styleColor:'#ff6b00', hint:'單局購買波動牌≥5張' },
+      price_dreamer: { id:'price_dreamer', name:'天價幻想家', banner:'assets/titles/price_dreamer.png', style:'fancy', hint:'單局買回合單次喊價>1000' },
       first_win: {
         id: 'first_win',
         name: '首勝玩家',
@@ -1250,6 +1332,48 @@
     function loadTitleData() {
       try { return JSON.parse(localStorage.getItem('playerTitles') || '{}'); } catch (_) { return {}; }
     }
+
+    function grantLocalTitle(id, reason) {
+      try {
+        const n = (room.players || []).length;
+        if (n < 3) {
+          // 未滿三人不可解鎖（防單刷），僅提示一次
+          return false;
+        }
+        const d = loadTitleData();
+        if (!d.owned) d.owned = [];
+        if (d.owned.includes(id)) return false;
+        d.owned.push(id);
+        localStorage.setItem('playerTitles', JSON.stringify(d));
+        const def = TITLE_DEFS[id];
+        showToast('解鎖稱號「' + (def ? def.name : id) + '」' + (reason ? '：' + reason : ''), 'success');
+        return true;
+      } catch (e) { return false; }
+    }
+    function trackLifetimeDebt(amount) {
+      if (amount <= 0) return;
+      try {
+        const m = JSON.parse(localStorage.getItem('lobbyMeta') || '{}');
+        m.lifetimeDebt = (m.lifetimeDebt || 0) + amount;
+        localStorage.setItem('lobbyMeta', JSON.stringify(m));
+        if (m.lifetimeDebt >= 2000) grantLocalTitle('debt_king', '累計欠債達 ' + m.lifetimeDebt);
+      } catch (e) {}
+    }
+    function updateSessionPeak() {
+      const p = me();
+      if (!p) return;
+      const net = totalAssets(p);
+      if (net > sessionStats.peakNet) sessionStats.peakNet = net;
+      const rc = countGoodsTypes ? countGoodsTypes(p) : Object.values(goodsRights||{}).filter(id => id === p.id).length;
+      // rights count
+      let rights = 0;
+      if (typeof goodsRights !== 'undefined') {
+        rights = Object.values(goodsRights).filter(id => id === p.id).length;
+      }
+      if (rights > sessionStats.maxRights) sessionStats.maxRights = rights;
+      if (sessionStats.maxRights >= 5) grantLocalTitle('true_rights_king', '單局持有5種物權');
+    }
+
     function getEquippedTitleDef(player) {
       if (!player) return null;
       let tid = null;
@@ -1279,6 +1403,13 @@
     let buyPhaseDeadline = 0;   // 買貨階段截止時間戳
     let buyTimerId = null;
     let setupStarted = false;   // 防止開場流程重入閃爍
+    let sessionStats = {
+      cardsBought: 0,
+      maxBid: 0,
+      maxRights: 0,
+      causedDebt: false,
+      peakNet: 0
+    };
 
     // 買回合（喊價搶操作順序）
     let bidState = {
@@ -1404,21 +1535,21 @@
       // 不是自己的回合：只顯示等待
       if (!isMyTurn()) {
         bar.innerHTML = `<span style="color:#e8c547;font-size:0.95rem;font-weight:700;">⏳ 目前輪到「${currentTurnName()}」操作，請等待…</span>
-          <button class="btn-red" onclick="endGameSettle()">結束遊戲結算</button>`;
+          <button class="btn-red" onclick="requestEndGame()">結束遊戲結算</button>`;
         return;
       }
       if (phase === 'fluctuate') {
         if (hasPlayedThisPhase) {
           bar.innerHTML = `
             <button class="btn-green" style="opacity:0.7;" disabled>出牌完成 · 自動結束中…</button>
-            <button class="btn-red" onclick="endGameSettle()">結束遊戲結算</button>
+            <button class="btn-red" onclick="requestEndGame()">結束遊戲結算</button>
           `;
         } else {
           bar.innerHTML = `
             <span style="color:#8ab4d8;font-size:0.85rem;">輪到你 · 波動出牌</span>
             <button class="btn-green" onclick="playCards()">出牌（完成後自動結束）</button>
             <button class="btn-navy" style="opacity:0.45;" disabled id="btnEnd">請先出牌</button>
-            <button class="btn-red" onclick="endGameSettle()">結束遊戲結算</button>
+            <button class="btn-red" onclick="requestEndGame()">結束遊戲結算</button>
           `;
         }
       } else {
@@ -1429,8 +1560,8 @@
           <button class="btn-red" onclick="openRepayModal()">還款</button>
           <button class="btn-navy" onclick="buyCardFromDeck()">買牌</button>
           <button class="btn-gold" ${rightsDisabled ? 'style="opacity:0.4;cursor:not-allowed;" disabled title="第二回合起才可購買物權"' : 'onclick="openBuyRightsModal()"'}>${rightsDisabled ? '購買物權（第2回合起）' : '購買物權'}</button>
-          <button class="btn-navy" onclick="endPhase()" id="btnEnd">結束我的回合</button>
-          <button class="btn-red" onclick="endGameSettle()">結束遊戲結算</button>
+          <button class="btn-navy" onclick="requestEndPhase()" id="btnEnd">結束我的回合</button>
+          <button class="btn-red" onclick="requestEndGame()">結束遊戲結算</button>
         `;
       }
       const p = me();
@@ -1451,6 +1582,9 @@
       document.getElementById('debtDisplay').textContent = p.debt;
       document.getElementById('bankDisplay').textContent = bankFunds;
       document.getElementById('roundNum').textContent = round;
+      try { updateOrderStrip(); } catch(e) {}
+      // 買貨階段換人時重設計時
+      if (phase === 'buy' && setupDone && currentTurnId !== timerForPlayerId) { try { startBuyPhaseTimer(); } catch(e) {} }
       const ji = document.getElementById('jobIncomeDisplay');
       if (ji) ji.textContent = pendingJobIncome;
       const jf = document.getElementById('jobFeeDisplay');
@@ -1554,10 +1688,9 @@
       const n = neighbor();
       document.getElementById('myCardsTitle').textContent =
         phase === 'fluctuate' ? '我的公開牌組（點選 1 張）' : '我的公開牌組';
+      // 不顯示「與誰共享」提示
       document.getElementById('neighborCardsTitle').textContent =
-        phase === 'fluctuate'
-          ? `與「${n.name}」共享的牌組（點選 1 張）`
-          : `與「${n.name}」共享`;
+        phase === 'fluctuate' ? '副牌組（點選 1 張）' : '副牌組';
 
       renderBoard();
       renderCards('myCards', p.cards, 'mine');
@@ -1922,6 +2055,7 @@
 
     function confirmBuy() {
       if (!isMyTurn()) { showToast('還沒輪到你', 'error'); return; }
+      if (mustRepayThisTurn && me().debt > 0) { showToast('請先完成最低還款，才能買賣', 'error'); openRepayModal(); return; }
       const id = window._buyGoodId;
       const g = GOODS.find(x => x.id === id);
       const qty = readQty('buyQty');
@@ -2060,6 +2194,7 @@
       p.cash -= cost;
       bankFunds += cost;
       goodsRights[goodId] = p.id;
+      updateSessionPeak();
       checkAutoRightsMaster(p);
       render();
       openBuyRightsModal();
@@ -2084,6 +2219,7 @@
       rightsSoldThisRound += 1;
       if (hasJob(p, 'rights_master') && countRights(p.id) < 4) {
         p.jobs = ensureJobs(p).filter(id => id !== 'rights_master');
+        showToast('物權少於 4，物權主宰已自動解除', 'error');
         ensureJobs(p);
         showBigAlert('⚠ 物權不足 4 個', '你的物權主宰職業已自動消除');
       }
@@ -2128,6 +2264,7 @@
     }
 
     function confirmBorrow() {
+      // debt tracking patched below
       const p = me();
       let amount = readQty('borrowAmount');
       if (p.borrowedThisRound === undefined) p.borrowedThisRound = 0;
@@ -2154,6 +2291,7 @@
         p.cash += amount;
         p.debt += owe;
         p.debtAnchor = (p.debtAnchor || 0) + owe; // 基準＝應還總額（本金的50%）
+        trackLifetimeDebt(owe);
         p.bankBorrowedThisRound = true;
         p.borrowedThisRound += amount;
         bankFunds -= amount;
@@ -2175,6 +2313,7 @@
       p.cash += amount;
       p.debt += amount;
       p.debtAnchor = (p.debtAnchor || 0) + amount;
+      trackLifetimeDebt(amount);
       p.borrowedThisRound += amount;
       bankFunds -= amount;
       closeModals();
@@ -2327,17 +2466,22 @@
         const fee = (sumVal === 0) ? 100 : Math.abs(sumVal) * 100;
         if (p.id === myId) jobFeesPaid += fee;
         else p.cash -= fee;
-        if (landlord.id === myId) pendingJobIncome += fee;
-        else landlord.cash += fee;
+        if (landlord.id === myId) {
+          pendingJobIncome += fee;
+          if ((p.debt||0) > 0 || p.cash < 0) sessionStats.causedDebt = true;
+        } else landlord.cash += fee;
         feeNotes.push(`地主 ${fee}`);
       }
+      // 牌王：只收「別人」出牌費，自己出牌不計入
       const cardKing = getJobPlayer('card_king');
       if (cardKing && cardKing.id !== p.id) {
         const fee = playedAll.length * 100;
         if (p.id === myId) jobFeesPaid += fee;
         else p.cash -= fee;
-        if (cardKing.id === myId) pendingJobIncome += fee;
-        else cardKing.cash += fee;
+        if (cardKing.id === myId) {
+          pendingJobIncome += fee;
+          if ((p.debt||0) > 0 || p.cash < 0) sessionStats.causedDebt = true;
+        } else cardKing.cash += fee;
         feeNotes.push(`牌王 ${fee}`);
       }
 
@@ -2347,21 +2491,32 @@
 
       hasPlayedThisPhase = true; // 本階段不能再出
       selectedCards = [];
+      // 中央展示出牌內容（全員可見）
+      const revealCards = playedAll.map(c => ({
+        name: c.goodName || c.good || '',
+        value: c.value,
+        icon: (GOODS.find(g => g.id === c.good) || {}).icon || ''
+      }));
+      showPlayReveal(p.name, revealCards);
+      if (isOnlineMode() && window.GameNet) {
+        try { GameNet.sendEvent('play_reveal', { name: p.name, cards: revealCards }); } catch (e) {}
+      }
       render();
+      if (typeof syncPush === 'function') syncPush();
       showToast('出牌完成' + (feeNotes.length ? `（支付：${feeNotes.join('、')}）` : '') + ' → 自動結束本階段', 'success');
       checkWin();
+      updateSessionPeak();
 
-      // 出牌後自動結束波動階段，進入下一回合買貨（換下一位流程）
+      // 出牌畫面持續 4 秒後再進入下一段（換人或買回合）
       const needRefill = p.cards.length === 0;
       setTimeout(() => {
         if (needRefill) {
           document.getElementById('refillModal').classList.add('show');
-          // 補牌後仍可由玩家手動結束；若直接關閉則下面再自動結束
           window._autoEndAfterRefill = true;
         } else {
           endPhase();
         }
-      }, 550);
+      }, 4000);
     }
 
     function applyCard(card) {
@@ -2411,18 +2566,41 @@
       const ranked = [...room.players]
         .map(pl => ({ id: pl.id, name: pl.name, total: totalAssets(pl), cash: pl.cash, hold: holdValue(pl), debt: pl.debt }))
         .sort((a, b) => b.total - a.total);
-      // 首勝稱號（本機勝者）
-      if (ranked[0] && ranked[0].id === myId) {
-        try {
-          const d = loadTitleData();
-          if (!d.owned) d.owned = [];
-          if (!d.owned.includes('first_win')) {
-            d.owned.push('first_win');
-            localStorage.setItem('playerTitles', JSON.stringify(d));
-            showToast('獲得稱號「首勝玩家」！', 'success');
-          }
-        } catch (e) {}
-      }
+      // 稱號結算（本機）
+      updateSessionPeak();
+      const myRank = ranked.find(r => r.id === myId);
+      const isWinner = ranked[0] && ranked[0].id === myId;
+      if (isWinner) grantLocalTitle('first_win', '本局第一');
+      if (myRank && myRank.total >= 8000 && !isWinner) grantLocalTitle('victory_phantom', '淨資產 ' + myRank.total + ' 惜敗');
+      if (sessionStats.maxRights >= 5) grantLocalTitle('true_rights_king', '物權 ' + sessionStats.maxRights);
+      if (sessionStats.cardsBought >= 5) grantLocalTitle('card_storm', '買牌 ' + sessionStats.cardsBought);
+      if (sessionStats.maxBid > 1000) grantLocalTitle('price_dreamer', '最高喊價 ' + sessionStats.maxBid);
+      if (sessionStats.causedDebt) grantLocalTitle('finance_reaper', '職業逼債成功');
+      // 期貨代幣：第1名50、第2名30、第3名10、其餘5；並累計任務
+      try {
+        const myIdx = ranked.findIndex(r => r.id === myId);
+        let tok = 5;
+        if (myIdx === 0) tok = 50;
+        else if (myIdx === 1) tok = 30;
+        else if (myIdx === 2) tok = 10;
+        const meta = JSON.parse(localStorage.getItem('lobbyMeta') || '{}');
+        meta.tokens = (meta.tokens || 0) + tok;
+        meta.playedGames = (meta.playedGames || 0) + 1;
+        const myTotal = myRank ? myRank.total : 0;
+        if (myTotal >= 5000) meta.taskReach5k = true;
+        // 每日任務標記
+        const today = new Date().toISOString().slice(0, 10);
+        if (meta.taskDay !== today) {
+          meta.taskDay = today;
+          meta.taskPlayDone = false;
+          meta.taskPlayClaimed = false;
+          meta.task5kClaimed = false;
+          // feed claimed 與餵貓共用 lastFeed
+        }
+        meta.taskPlayDone = true;
+        localStorage.setItem('lobbyMeta', JSON.stringify(meta));
+        showToast('獲得期貨代幣 +' + tok + '（名次第 ' + (myIdx + 1) + '）', 'success');
+      } catch (e) {}
       let html = '';
       ranked.forEach((r, i) => {
         const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}.`;
@@ -2510,6 +2688,7 @@
       }
     }
     function confirmBuyCard() {
+      if (mustRepayThisTurn && me().debt > 0) { showToast('請先完成最低還款', 'error'); openRepayModal(); return; }
       if (!pickGoodId || pickValue === null) {
         showToast('請選擇貨物與點數', 'error');
         return;
@@ -2530,6 +2709,8 @@
       if (hasJob(p, 'card_king')) {
         p.cardSpendThisRound = (p.cardSpendThisRound || 0) + price;
       }
+      sessionStats.cardsBought = (sessionStats.cardsBought || 0) + 1;
+      if (sessionStats.cardsBought >= 5) grantLocalTitle('card_storm', '本局已買 ' + sessionStats.cardsBought + ' 張牌');
       closeModals();
       render();
       showToast(`已購買 ${g.name} ${pickValue > 0 ? '+' : ''}${pickValue}（${price}元，牌庫剩 ${totalDeckLeft()}）`, 'success');
@@ -2550,6 +2731,72 @@
           else showToast(`職業結算 ±0（收成 ${income} − 抽成 ${fees}）`, 'success');
         }
       }
+    }
+    let _gcResolve = null;
+    function showPlayReveal(name, cards) {
+      const box = document.getElementById('playReveal');
+      const who = document.getElementById('playRevealWho');
+      const list = document.getElementById('playRevealCards');
+      if (!box || !list) return;
+      if (who) who.textContent = (name || '玩家') + ' 出牌';
+      list.innerHTML = (cards || []).map(c => {
+        const v = c.value || 0;
+        const cls = v >= 0 ? 'plus' : 'minus';
+        return `<div class="rc ${cls}">${c.icon || ''} ${c.name || ''}<br>${v > 0 ? '+' : ''}${v}</div>`;
+      }).join('');
+      box.classList.remove('show');
+      void box.offsetWidth;
+      box.classList.add('show');
+      setTimeout(() => box.classList.remove('show'), 4000);
+    }
+    function updateOrderStrip() {
+      const el = document.getElementById('orderStrip');
+      if (!el) return;
+      const order = (turnOrder && turnOrder.length) ? turnOrder : (room.players || []).map(p => p.id);
+      if (!order.length) {
+        el.textContent = '操作順序：尚未決定';
+        return;
+      }
+      const parts = order.map((id, i) => {
+        const pl = (room.players || []).find(p => p.id === id || p.id === Number(id));
+        const nm = pl ? pl.name : ('#' + id);
+        const now = (currentTurnId == id || currentTurnId == Number(id));
+        return now ? `<span class="now">▶ ${i + 1}.${nm}</span>` : `${i + 1}.${nm}`;
+      });
+      const phaseName = phase === 'buy' ? '買貨' : (phase === 'fluctuate' ? '波動' : (phase === 'bid' ? '買回合(喊價)' : phase));
+      el.innerHTML = `<strong>第 ${round} 回合 · ${phaseName}</strong>　順序：${parts.join(' → ')}`;
+    }
+    function gameConfirm(title, msg) {
+      return new Promise((resolve) => {
+        _gcResolve = resolve;
+        const mask = document.getElementById('gameConfirmMask');
+        const tEl = document.getElementById('gcTitle');
+        const mEl = document.getElementById('gcMsg');
+        if (tEl) tEl.textContent = title || '確認';
+        if (mEl) mEl.textContent = msg || '確定嗎？';
+        if (mask) mask.classList.add('show');
+      });
+    }
+    function _gcAnswer(ok) {
+      const mask = document.getElementById('gameConfirmMask');
+      if (mask) mask.classList.remove('show');
+      const r = _gcResolve;
+      _gcResolve = null;
+      if (r) r(!!ok);
+    }
+    document.addEventListener('click', (e) => {
+      if (e.target && e.target.id === 'gcOk') _gcAnswer(true);
+      if (e.target && e.target.id === 'gcCancel') _gcAnswer(false);
+    });
+    async function requestEndPhase() {
+      const ok = await gameConfirm('結束回合', '確定要結束本階段／你的回合嗎？');
+      if (!ok) return;
+      endPhase();
+    }
+    async function requestEndGame() {
+      const ok = await gameConfirm('結束遊戲', '確定結束遊戲並結算？全員將一起結束。');
+      if (!ok) return;
+      endGameSettle();
     }
     function endPhase(fromRefillModal) {
       const p = me();
@@ -2627,6 +2874,18 @@
       }
       render();
       if (typeof syncPush === 'function') syncPush();
+      if (isOnlineMode() && window.GameNet) {
+        try {
+          GameNet.sendEvent('turn_done', {
+            playerId: myId,
+            phaseDoneIds: phaseDoneIds,
+            currentTurnId: currentTurnId,
+            phase: phase,
+            round: round,
+            hasPlayedThisPhase: hasPlayedThisPhase
+          });
+        } catch (e) {}
+      }
     }
 
     function checkWin() {
@@ -2650,7 +2909,7 @@
 
       const titleDef = getEquippedTitleDef(pl);
       let html = `
-        ${titleDef ? `<div class="profile-title-banner"><img class="pt-img" src="${titleDef.banner}" alt="" /><div class="pt-shade"></div><span class="pt-text">${titleDef.name}</span></div>` : ''}
+        ${titleDef ? `<div class="profile-title-banner"><img class="pt-img" src="${titleDef.banner||''}" alt="" onerror="this.style.display=\'none\'" /><div class="pt-shade"></div><span class="pt-text ${titleDef.style||''}">${titleDef.name}</span></div>` : ''}
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;padding:12px;background:rgba(61,36,20,0.08);border-radius:12px;border:1px solid rgba(201,162,39,0.35);">
           <div style="width:52px;height:52px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#2a4a6a,#0d2137);border:2px solid #c9a227;display:flex;align-items:center;justify-content:center;font-size:1.6rem;">${jobIcon}</div>
           <div>
@@ -2733,19 +2992,24 @@
         : '尚未選擇（可同時擁有多個職業）';
 
       let sellHtml = '';
-      ensureJobs(p).forEach(jid => {
+      const sellable = ensureJobs(p).filter(jid => {
         const curJob = JOBS.find(j => j.id === jid);
-        if (!curJob) return;
-        if (curJob.sellPrice > 0) {
-          sellHtml += `<div style="grid-column:1/-1;margin-bottom:8px;">
-            <button class="btn-red" style="width:100%;padding:16px 14px;font-size:1.08rem;border-radius:14px;font-weight:800;letter-spacing:0.04em;box-shadow:0 4px 0 #6b1a1a;" onclick="sellJob('${curJob.id}')">賣掉「${curJob.title}」　回收 ${curJob.sellPrice}</button>
-          </div>`;
-        } else if (curJob.id === 'rights_master') {
-          sellHtml += `<div style="grid-column:1/-1;margin-bottom:8px;">
-            <button class="btn-red" style="width:100%;padding:16px 14px;font-size:1.08rem;border-radius:14px;font-weight:800;" onclick="sellJob('rights_master')">放棄物權主宰職業</button>
-          </div>`;
-        }
+        // 物權主宰不可手動賣掉，僅物權 <4 自動解除
+        return curJob && curJob.sellPrice > 0 && curJob.id !== 'rights_master';
       });
+      if (sellable.length) {
+        sellHtml = `<div style="grid-column:1/-1;margin-bottom:10px;border:1px dashed #9b2226;border-radius:12px;padding:10px;background:rgba(155,34,38,0.08);">
+          <button type="button" class="btn-navy" style="width:100%;margin-bottom:8px;" onclick="var b=document.getElementById('sellJobBox');b.style.display=b.style.display==='none'?'block':'none';">⚠️ 管理／賣掉職業（點此展開，勿誤觸）</button>
+          <div id="sellJobBox" style="display:none;">`;
+        sellable.forEach(jid => {
+          const curJob = JOBS.find(j => j.id === jid);
+          if (!curJob) return;
+          if (curJob.sellPrice > 0) {
+            sellHtml += `<button class="btn-red" style="width:100%;padding:12px;margin-bottom:6px;font-size:0.95rem;" onclick="askSellJob('${curJob.id}','${curJob.title}')">賣掉「${curJob.title}」　回收 ${curJob.sellPrice}</button>`;
+          }
+        });
+        sellHtml += `</div></div>`;
+      }
 
       document.getElementById('jobPickGrid').innerHTML = sellHtml + JOBS.map(j => {
         const taken = isJobTaken(j.id, p.id);
@@ -2828,7 +3092,15 @@
       showToast(`已就任「${job.title}」（可再選其他職業）`, 'success');
     }
 
+    async function askSellJob(jobId, title) {
+      const ok = await gameConfirm('賣掉職業', '確定賣掉「' + title + '」？');
+      if (ok) sellJob(jobId);
+    }
     function sellJob(jobId) {
+      if (jobId === 'rights_master') {
+        showToast('物權主宰不可手動賣掉（物權少於 4 時會自動解除）', 'error');
+        return;
+      }
       const p = me();
       ensureJobs(p);
       if (!p.jobs.length) { showToast('你沒有職業可賣', 'error'); return; }
@@ -2887,9 +3159,9 @@
       return next;
     }
     function allPhaseDone() {
-      const order = turnOrder.length ? turnOrder.filter(id => activePlayerIds().includes(id)) : activePlayerIds();
+      const order = turnOrder.length ? turnOrder.filter(id => activePlayerIds().includes(Number(id)) || activePlayerIds().includes(id)) : activePlayerIds();
       const ids = order.length ? order : activePlayerIds();
-      return ids.length > 0 && ids.every(id => phaseDoneIds[id]);
+      return ids.length > 0 && ids.every(id => !!(phaseDoneIds[id] || phaseDoneIds[String(id)] || phaseDoneIds[Number(id)]));
     }
     function setTurn(pid, sync) {
       currentTurnId = pid;
@@ -2927,9 +3199,10 @@
       const act = document.getElementById('cinemaActions');
       if (opts && opts.roulette) {
         rw.style.display = '';
-        buildRoulette();
-      } else {
+        if (!rw.dataset.built) { buildRoulette(); rw.dataset.built = '1'; }
+      } else if (rw) {
         rw.style.display = 'none';
+        rw.dataset.built = '';
       }
       if (opts && opts.actionsHtml) {
         act.style.display = 'flex';
@@ -2997,7 +3270,7 @@
         const pl = room.players.find(p => p.id === id);
         return pl ? pl.name : id;
       }).join(' → ');
-      showToast(`第1回合操作序：${names}（共享隔壁已固定）`, 'success');
+      showToast(`第1回合操作序：${names}`, 'success');
       startBuyPhaseTimer();
       render();
       if (typeof syncPush === 'function') syncPush();
@@ -3032,14 +3305,12 @@
       }, 2000);
     }
     function chooseTurnDir(dir) {
-      // 房主選擇方向
-      if (isOnlineMode()) {
-        const meP = me();
-        const isHost = meP && (meP.isHost || meP.id === (room.hostId || 1));
-        if (!isHost) {
-          showToast('等待房主選擇方向', 'error');
-          return;
-        }
+      // 只有輪盤抽出的「第一位」可選順／逆時針（不是房主）
+      if (myId !== firstPlayerId && myId !== Number(firstPlayerId)) {
+        showToast('只有順序第一位的玩家可以選擇方向', 'error');
+        return;
+      }
+      if (isOnlineMode() && window.GameNet) {
         GameNet.sendEvent('order_dir', { firstId: firstPlayerId, dir });
       }
       applyTurnSetup(firstPlayerId, dir);
@@ -3093,15 +3364,32 @@
       }, 1000);
     }
 
+    let timerForPlayerId = null;
     function clearBuyPhaseTimer() {
       if (buyTimerId) { clearInterval(buyTimerId); buyTimerId = null; }
       buyPhaseDeadline = 0;
+      timerForPlayerId = null;
       const el = document.getElementById('buyTimerHud');
       if (el) el.remove();
     }
     function startBuyPhaseTimer() {
+      // 僅在「輪到自己」的買貨回合計時；換人就重算 3 分鐘
       clearBuyPhaseTimer();
       if (phase !== 'buy') return;
+      if (!isMyTurn()) {
+        // 顯示等待中的倒數狀態（不計罰）
+        let hud = document.getElementById('buyTimerHud');
+        if (!hud) {
+          hud = document.createElement('div');
+          hud.id = 'buyTimerHud';
+          hud.style.cssText = 'position:fixed;top:12px;right:12px;z-index:50;background:rgba(12,24,40,0.88);color:#f3e5c5;padding:8px 12px;border-radius:10px;border:1px solid #c9a227;font-size:0.85rem;';
+          document.body.appendChild(hud);
+        }
+        hud.textContent = '等待「' + currentTurnName() + '」操作中';
+        hud.style.color = '#8ab4d8';
+        return;
+      }
+      timerForPlayerId = currentTurnId;
       buyPhaseDeadline = Date.now() + 3 * 60 * 1000;
       let hud = document.getElementById('buyTimerHud');
       if (!hud) {
@@ -3110,27 +3398,31 @@
         hud.style.cssText = 'position:fixed;top:12px;right:12px;z-index:50;background:rgba(12,24,40,0.88);color:#f3e5c5;padding:8px 12px;border-radius:10px;border:1px solid #c9a227;font-size:0.85rem;';
         document.body.appendChild(hud);
       }
+      hud.dataset.lastOt = '0';
       buyTimerId = setInterval(() => {
         if (phase !== 'buy') { clearBuyPhaseTimer(); return; }
+        // 換人了 → 重開計時
+        if (currentTurnId !== timerForPlayerId) {
+          startBuyPhaseTimer();
+          return;
+        }
+        if (!isMyTurn()) { startBuyPhaseTimer(); return; }
         const left = buyPhaseDeadline - Date.now();
         if (left >= 0) {
           const m = Math.floor(left / 60000);
           const s = Math.floor((left % 60000) / 1000);
-          hud.textContent = `買貨時限 ${m}:${String(s).padStart(2,'0')}`;
+          hud.textContent = `你的回合時限 ${m}:${String(s).padStart(2,'0')}`;
           hud.style.color = '#f3e5c5';
         } else {
-          const overtimeMin = Math.ceil((-left) / 60000); // 剛超也算 1 分
-          const penalty = overtimeMin * 100;
-          hud.textContent = `超時 ${overtimeMin} 分 · 已扣 ${penalty}`;
+          const overtimeMin = Math.ceil((-left) / 60000);
+          hud.textContent = `你的超時 ${overtimeMin} 分 · -${overtimeMin * 100}`;
           hud.style.color = '#ff8a80';
-          // 每跨過一分鐘扣一次：用 data 標記
-          const key = 'ot_' + overtimeMin;
           if (hud.dataset.lastOt !== String(overtimeMin)) {
             hud.dataset.lastOt = String(overtimeMin);
             const p = me();
             if (p && isMyTurn()) {
               p.cash -= 100;
-              showToast(`買貨超時，扣 100（第 ${overtimeMin} 分鐘）`, 'error');
+              showToast(`回合超時，扣 100（第 ${overtimeMin} 分鐘）`, 'error');
               render();
               if (typeof syncPush === 'function') syncPush();
             }
@@ -3153,17 +3445,31 @@
       render();
       if (typeof syncPush === 'function') syncPush();
     }
+    function snapBidValue(v) {
+      v = parseInt(v, 10);
+      if (isNaN(v) || v <= 0) return 0;
+      if (v < 50) return 50;
+      return Math.round(v / 50) * 50;
+    }
     function stepBid(delta) {
       const inp = document.getElementById('bidInput');
       if (!inp) return;
-      let v = parseInt(inp.value, 10) || 0;
-      // 僅 50 的倍數，最低 50、最高 500（0 表示暫不喊）
+      let v = snapBidValue(inp.value);
       if (v === 0 && delta > 0) v = 50;
       else v = v + (delta > 0 ? 50 : -50);
       if (v < 50) v = 0;
-      v = Math.max(0, Math.min(500, v));
-      if (v > 0) v = Math.round(v / 50) * 50;
+      v = snapBidValue(v);
       inp.value = String(v);
+    }
+    function onBidInput() {
+      const inp = document.getElementById('bidInput');
+      if (!inp) return;
+      // 輸入時不強改，失焦／提交再對齊
+    }
+    function onBidBlur() {
+      const inp = document.getElementById('bidInput');
+      if (!inp) return;
+      inp.value = String(snapBidValue(inp.value));
     }
     function submitBid() {
       if (!bidState.active || phase !== 'bid') return;
@@ -3171,11 +3477,8 @@
       const n = bidState.counts[myId] || 0;
       if (n >= 3) { showToast('最多只能喊 3 次', 'error'); return; }
       const inp = document.getElementById('bidInput');
-      let v = parseInt(inp && inp.value, 10);
-      if (isNaN(v)) v = 0;
-      if (v > 0 && v < 50) v = 50;
-      v = Math.max(0, Math.min(500, v));
-      if (v > 0) v = Math.round(v / 50) * 50;
+      let v = snapBidValue(inp && inp.value);
+      if (inp) inp.value = String(v);
       if (v > 0 && v % 50 !== 0) { showToast('只能以 50 為單位喊價', 'error'); return; }
       const prev = bidState.bids[myId] || 0;
       if (v < prev) { showToast('新出價不能低於你目前的出價', 'error'); return; }
@@ -3189,6 +3492,8 @@
       }
       bidState.bids[myId] = v;
       bidState.counts[myId] = n + 1;
+      if (v > sessionStats.maxBid) sessionStats.maxBid = v;
+      if (v > 1000) grantLocalTitle('price_dreamer', '單次喊價 ' + v);
       renderBidList();
       startBidTimer(); // 有人喊價就重數 10 秒
       showToast(`你出價 ${v}（本階段已喊 ${bidState.counts[myId]}/3）`, 'success');
@@ -3235,7 +3540,7 @@
       setupDone = true;
       phase = 'buy';
       const names = arr.map(x => `${x.name}(${x.bid})`).join(' → ');
-      showToast('買回合結束，操作順序：' + names + '（共享仍依開場座位）', 'success');
+      showToast('買回合結束，操作順序：' + names, 'success');
       startBuyPhaseTimer();
       render();
       if (typeof syncPush === 'function') syncPush();
@@ -3338,9 +3643,26 @@
     }
     let _applyingNet = false;
     let _lastNetTs = 0;
+    function isPhaseDone(id) {
+      return !!(phaseDoneIds[id] || phaseDoneIds[String(id)] || phaseDoneIds[Number(id)]);
+    }
     function importGameState(state) {
       if (!state || _applyingNet) return;
-      if (state.ts && state.ts <= _lastNetTs) return;
+      // 完成標記永遠合併（即使封包較舊），避免多人卡在第 1 回合
+      if (state.phaseDoneIds) {
+        phaseDoneIds = Object.assign({}, phaseDoneIds, state.phaseDoneIds);
+      }
+      if (state.ts && state.ts <= _lastNetTs) {
+        // 僅合併完成標記後重繪操作權
+        if (currentTurnId && isPhaseDone(currentTurnId) && !allPhaseDone()) {
+          let cur = nextTurnAfter(currentTurnId);
+          let guard = 0;
+          while (isPhaseDone(cur) && guard++ < 10) cur = nextTurnAfter(cur);
+          currentTurnId = cur;
+        }
+        render();
+        return;
+      }
       _applyingNet = true;
       try {
         if (state.ts) _lastNetTs = state.ts;
@@ -3369,8 +3691,14 @@
         if (state.setupDone != null) setupDone = state.setupDone;
         if (state.firstPlayerId != null) firstPlayerId = state.firstPlayerId;
         if (state.currentTurnId != null) currentTurnId = state.currentTurnId;
-        if (state.phaseDoneIds) phaseDoneIds = state.phaseDoneIds;
         if (state.seatOrder) seatOrder = state.seatOrder;
+        // 若目前回合對象已結束，跳到下一位
+        if (currentTurnId && isPhaseDone(currentTurnId) && !allPhaseDone()) {
+          let cur = nextTurnAfter(currentTurnId);
+          let guard = 0;
+          while (isPhaseDone(cur) && guard++ < 10) cur = nextTurnAfter(cur);
+          currentTurnId = cur;
+        }
         if (setupDone) hideCinema();
         render();
       } finally {
@@ -3411,6 +3739,25 @@
             setTimeout(() => hostRunOrderSequence(), 2000);
           }
         }
+        if (ev === 'play_reveal' && payload) {
+          showPlayReveal(payload.name, payload.cards || []);
+        }
+        if (ev === 'turn_done' && payload) {
+          if (payload.phaseDoneIds) phaseDoneIds = Object.assign({}, phaseDoneIds, payload.phaseDoneIds);
+          if (payload.currentTurnId != null) currentTurnId = payload.currentTurnId;
+          if (payload.phase) phase = payload.phase;
+          if (payload.round != null) round = payload.round;
+          if (payload.hasPlayedThisPhase != null && payload.playerId === myId) hasPlayedThisPhase = payload.hasPlayedThisPhase;
+          // 若同步後發現全員完成且自己是目前應操作者或房主，推進（防止卡回合）
+          if (allPhaseDone()) {
+            const meP = me();
+            const isHost = meP && (meP.isHost || meP.id === (room.hostId || 1));
+            if (isHost || currentTurnId === myId) {
+              // 由持有最新狀態的客戶端推進一次
+            }
+          }
+          render();
+        }
         if (ev === 'game_end_settle') {
           endGameSettle(true);
         }
@@ -3436,7 +3783,17 @@
           // 等輪盤動畫，房主會再發方向；非房主顯示等待
           setTimeout(() => {
             if (!setupDone) {
-              showCinema(`第一位：${payload.name || ''}`, '等待房主選擇順／逆時針…');
+              const amFirst = (myId === payload.firstId || myId === Number(payload.firstId));
+              firstPlayerId = payload.firstId;
+              if (amFirst) {
+                showCinema('你是第一位：' + (payload.name || ''), '請選擇回合方向（僅你可選）', {
+                  actionsHtml:
+                    '<button class="cw" onclick="chooseTurnDir('cw')">順時針 ↻</button>' +
+                    '<button class="ccw" onclick="chooseTurnDir('ccw')">逆時針 ↺</button>'
+                });
+              } else {
+                showCinema(`第一位：${payload.name || ''}`, '等待第一位選擇順／逆時針…');
+              }
             }
           }, 500);
         }
