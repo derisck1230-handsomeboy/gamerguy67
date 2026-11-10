@@ -506,7 +506,16 @@
       width: 46px; height: 46px; min-width: 46px; padding: 0 !important;
       border-radius: 50%; border: 2px solid var(--gold) !important;
       background: linear-gradient(160deg,#1a3a55,#0c1e30); color: #f3e5c5;
-      font-size: 1.25rem; display: inline-flex; align-items: center; justify-content: center;
+      display: inline-flex; align-items: center; justify-content: center;
+      position: relative;
+    }
+    .btn-pause .pause-ico {
+      display: flex; align-items: center; justify-content: center; gap: 4px;
+      width: 18px; height: 16px;
+    }
+    .btn-pause .pause-ico i {
+      display: block; width: 4px; height: 14px; border-radius: 1px;
+      background: #f3e5c5; box-shadow: 0 0 4px rgba(232,197,71,0.4);
     }
     .pause-menu-mask {
       position: fixed; inset: 0; z-index: 180; background: rgba(6,14,24,0.65);
@@ -522,6 +531,41 @@
     .pause-menu-box button { width: 100%; margin-top: 8px; padding: 12px; border-radius: 12px; font-weight: 700; }
 
     .btn-red { background: #9b2226; color: #fff; }
+    .job-pick-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin: 0;
+      overflow-y: auto;
+      max-height: min(58vh, 520px);
+      padding: 2px;
+      -webkit-overflow-scrolling: touch;
+    }
+    .job-pick-card {
+      border: 2px solid #8b5e3c;
+      border-radius: 12px;
+      padding: 12px 8px;
+      text-align: center;
+      background: rgba(255,255,255,0.35);
+      min-height: 120px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      box-sizing: border-box;
+    }
+    .job-pick-card .jp-icon { font-size: 1.9rem; line-height: 1.2; margin-bottom: 4px; }
+    .job-pick-card .jp-title { font-weight: 800; font-size: 0.95rem; }
+    .job-pick-card .jp-desc {
+      font-size: 0.7rem; color: #5a3a22; margin-top: 4px;
+      line-height: 1.25; max-height: 3.6em; overflow: hidden;
+    }
+    .job-pick-card .jp-status { font-size: 0.72rem; margin-top: auto; padding-top: 6px; font-weight: 700; }
+    @media (max-width: 420px) {
+      .job-pick-grid { grid-template-columns: 1fr 1fr; gap: 6px; }
+      .job-pick-card { padding: 10px 6px; min-height: 110px; }
+      .job-pick-card .jp-desc { font-size: 0.65rem; }
+    }
     .btn-purple { background: #5a3a7a; color: #fff; }
 
     .modal-mask {
@@ -680,11 +724,18 @@
     .buy-round-banner.show { display: flex; }
     .buy-round-banner span {
       font-family: 'Cinzel', 'Noto Serif TC', serif;
-      font-size: clamp(2.4rem, 10vw, 4.5rem);
-      font-weight: 900; color: #e8c547; letter-spacing: 0.2em;
-      opacity: 0; transform: scale(0.8);
+      font-size: clamp(1.4rem, 7vw, 3.2rem);
+      font-weight: 900; color: #e8c547;
+      letter-spacing: 0.06em;
+      line-height: 1.25;
+      text-align: center;
+      max-width: 90vw;
+      padding: 12px 16px;
+      opacity: 0; transform: scale(0.92);
       animation: buyRoundIn 1.4s ease forwards;
       text-shadow: 0 0 40px rgba(201,162,39,0.6);
+      word-break: keep-all;
+      white-space: normal;
     }
     @keyframes buyRoundIn {
       0% { opacity: 0; transform: scale(0.8); }
@@ -992,13 +1043,13 @@
 
   <!-- 遊戲內選擇職業 -->
   <div class="modal-mask" id="jobModal">
-    <div class="modal" style="max-width:400px;">
-      <h3>選擇職業</h3>
-      <p style="font-size:0.85rem;">在遊戲中選擇你的身分。銀行需支付 3000 元就任。</p>
-      <div id="jobPickGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0;"></div>
-      <p>目前職業：<strong id="currentJobLabel">尚未選擇</strong></p>
-      <div class="modal-actions">
-        <button class="btn-gold" onclick="confirmJob()">確認</button>
+    <div class="modal" style="max-width:min(520px,96vw);width:100%;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;">
+      <h3 style="margin:0 0 6px;">選擇職業</h3>
+      <p style="font-size:0.82rem;margin:0 0 8px;color:#5a3a22;">可同時擁有多個職業；灰色為已被選走或敬請期待。</p>
+      <p style="font-size:0.88rem;margin:0 0 8px;">目前：<strong id="currentJobLabel">尚未選擇</strong></p>
+      <div id="jobPickGrid" class="job-pick-grid"></div>
+      <div class="modal-actions" style="margin-top:10px;flex-shrink:0;">
+        <button class="btn-gold" onclick="confirmJob()">確認就任</button>
         <button class="btn-navy" onclick="closeModals()">關閉</button>
       </div>
     </div>
@@ -1592,7 +1643,35 @@
     let hasPlayedThisPhase = false; // 波動階段每人只能出牌一次
     let turnOrder = [];       // 玩家 id 順序
     let turnDir = 'cw';      // cw | ccw
-    let setupDone = false;   // 開場輪盤是否完成
+    let setupDone = false;
+    let _wakeLock = null;
+    async function requestWakeLock() {
+      try {
+        if (navigator.wakeLock && navigator.wakeLock.request) {
+          _wakeLock = await navigator.wakeLock.request('screen');
+          _wakeLock.addEventListener('release', () => { _wakeLock = null; });
+        }
+      } catch (e) {}
+      // 後備：隱藏影片循環（部分瀏覽器）
+      try {
+        let v = document.getElementById('keepAwakeVid');
+        if (!v) {
+          v = document.createElement('video');
+          v.id = 'keepAwakeVid';
+          v.setAttribute('playsinline', '');
+          v.setAttribute('muted', '');
+          v.muted = true;
+          v.loop = true;
+          v.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;bottom:0;left:0;';
+          v.src = 'data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAAIZnJlZQAAAr1tZGF0AAACrgYF//+q3EXpvebZSLeWLNgg2SPu73gyNjQgLS4xNDAzIC0gY29yZSAxNDgyIHIyOTkzMCAtIEguMjY0L01QRUctNCBBVkMgY29kZWMgLSBDb3B5bGVmdCAyMDAzLTIwMTUgLSBodHRwOi8vd3d3LnZpZGVvbGFuLm9yZy94MjY0Lmh0bWwgLSBvcHRpb25zOiBjYWJhYz0xIHJlZj0zIGRlYmxvY2s9MTowOjAgYW5hbHlzZS0wOjA6MCBtZT1oZXggc3VibWU9NyBwc3k9MSBwc3lfcmQ9MS4wMDowLjAwIG1peGVkX3JlZj0xIG1lX3JhbmdlPTE2IGNocm9tYV9tZT0xIHRyZWxsaXM9MSA4eDhkY3Q9MSBjcW09MCBkZWFkem9uZT0yMSwxMSBmYXN0X3Bza2lwPTEgY2hyb21hX3FwX29mZnNldD0tMiB0aHJlYWRzPTEgbG9va2FoZWFkX3RocmVhZHM9MSBzbGljZWRfdGhyZWFkcz0wIG5yPTAgZGVjaW1hdGU9MSBpbnRlcmxhY2VkPTAgYmx1cmF5X2NvbXBhdD0wIGNvbnN0cmFpbmVkX2ludHJhPTAgYmZyYW1lcz0zIGJfcHlyYW1pZD0yIGJfYWRhcHQ9MSBiX2JpYXM9MCBkaXJlY3Q9MSB3ZWlnaHRiPTEgb3Blbl9nb3A9MCB3ZWlnaHRwPTIga2V5aW50PTI1MCBrZXlpbnRfbWluPTI1IHNjZW5lY3V0PTQwIGludHJhX3JlZnJlc2g9MCByY19sb29rYWhlYWQ9NDAgcmM9Y3JmIG1idHJlZT0xIGNyZj0yMy4wIHFjb21wPTAuNjAgcXBtaW49MCBxcG1heD02OSBxcHN0ZXA9NCBpcF9yYXRpbz0xLjQwIGFxPTE6MS4wMACAAAAAOWWIhAA3//728P4FNjuZQQAAAu5tb292AAAAbG12aGQAAAAAAAAAAAAAAAAAAAPoAAAAAAABAAABAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAACGHRyYWsAAABcdGtoZAAAAAMAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAgBIAAAABm11bHAAAAAZbWRuZgAAAAhtaGRscgAAAAAAAAAAdGJyjwAAApltZGlhAAAAIG1kaGQAAAAAAAAAAAAAAAAAADhYAAF/wAB1nG1ldGEAAAAAAAAAIWhkbHIAAAAAAAAAAG1kaXJhcGwAAAAAAAAAAAAAAAAtaWxvYwAAACVpbXN0AAAAABoAAAoAAAAAAxxnY2NwAABzbWlzZQAAAAhtaXNjcAAAAARzdHNkASAgAAAAhm1kYXQAAAAA';
+          document.body.appendChild(v);
+        }
+        v.play().catch(()=>{});
+      } catch (e) {}
+    }
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') requestWakeLock();
+    });   // 開場輪盤是否完成
     let readyPlayers = {};   // online: playerId -> true
     let firstPlayerId = null;
     let currentTurnId = null;   // 目前輪到誰操作
@@ -1731,7 +1810,7 @@
     }
     function renderActionBar() {
       const bar = document.getElementById('actionBar');
-      const pauseBtn = `<button type="button" class="btn-pause" title="選單" onclick="openPauseMenu()">⏸</button>`;
+      const pauseBtn = `<button type="button" class="btn-pause" title="選單" onclick="openPauseMenu()"><span class="pause-ico" aria-hidden="true"><i></i><i></i></span></button>`;
       if (phase === 'setup') {
         bar.innerHTML = '<span style="color:#c9a227;font-size:0.9rem;">開場準備中，請稍候…</span>' + pauseBtn;
         return;
@@ -2783,30 +2862,33 @@
       if (sessionStats.cardsBought >= 5) grantLocalTitle('card_storm', '買牌 ' + sessionStats.cardsBought);
       if (sessionStats.maxBid > 1000) grantLocalTitle('price_dreamer', '最高喊價 ' + sessionStats.maxBid);
       if (sessionStats.causedDebt) grantLocalTitle('finance_reaper', '職業逼債成功');
-      // 期貨代幣：第1名50、第2名30、第3名10、其餘5；並累計任務
+      // 期貨代幣／任務：僅聯機模式發放（本機測試、2人離線不可刷代幣）
       try {
-        const myIdx = ranked.findIndex(r => r.id === myId);
-        let tok = 5;
-        if (myIdx === 0) tok = 50;
-        else if (myIdx === 1) tok = 30;
-        else if (myIdx === 2) tok = 10;
+        const myIdx = ranked.findIndex(r => sameId(r.id, myId));
+        const onlineOk = isOnlineMode() && (room.players || []).length >= 2;
         const meta = JSON.parse(localStorage.getItem('lobbyMeta') || '{}');
-        meta.tokens = (meta.tokens || 0) + tok;
-        meta.playedGames = (meta.playedGames || 0) + 1;
-        const myTotal = myRank ? myRank.total : 0;
-        if (myTotal >= 5000) meta.taskReach5k = true;
-        // 每日任務標記
-        const today = new Date().toISOString().slice(0, 10);
-        if (meta.taskDay !== today) {
-          meta.taskDay = today;
-          meta.taskPlayDone = false;
-          meta.taskPlayClaimed = false;
-          meta.task5kClaimed = false;
-          // feed claimed 與餵貓共用 lastFeed
+        if (onlineOk) {
+          let tok = 5;
+          if (myIdx === 0) tok = 50;
+          else if (myIdx === 1) tok = 30;
+          else if (myIdx === 2) tok = 10;
+          meta.tokens = (meta.tokens || 0) + tok;
+          meta.playedGames = (meta.playedGames || 0) + 1;
+          const myTotal = myRank ? myRank.total : 0;
+          if (myTotal >= 5000) meta.taskReach5k = true;
+          const today = new Date().toISOString().slice(0, 10);
+          if (meta.taskDay !== today) {
+            meta.taskDay = today;
+            meta.taskPlayDone = false;
+            meta.taskPlayClaimed = false;
+            meta.task5kClaimed = false;
+          }
+          meta.taskPlayDone = true;
+          localStorage.setItem('lobbyMeta', JSON.stringify(meta));
+          showToast('獲得期貨代幣 +' + tok + '（名次第 ' + (myIdx + 1) + '）', 'success');
+        } else {
+          showToast('本機／測試模式不發放期貨代幣', 'error');
         }
-        meta.taskPlayDone = true;
-        localStorage.setItem('lobbyMeta', JSON.stringify(meta));
-        showToast('獲得期貨代幣 +' + tok + '（名次第 ' + (myIdx + 1) + '）', 'success');
       } catch (e) {}
       let html = '';
       ranked.forEach((r, i) => {
@@ -3025,6 +3107,7 @@
       }
 
       if (phase === 'buy') {
+        // 買貨結束：結算非波動類收成（被動職業等）
         settleJobIncomeFor(p);
         phaseDoneIds[myId] = true;
         hasPlayedThisPhase = false;
@@ -3063,6 +3146,8 @@
           try { startBuyPhaseTimer(true); } catch(e) {}
         }
       } else if (phase === 'fluctuate') {
+        // 波動結束：地主等能力收入自職業收成入帳
+        settleJobIncomeFor(p);
         phaseDoneIds[myId] = true;
         hasPlayedThisPhase = false;
         selectedCards = [];
@@ -3418,14 +3503,12 @@
         const status = soon
           ? '敬請期待'
           : (mine ? '✓ 你已擁有' : (disabled ? `已被「${takenBy ? takenBy.name : '?'}」選走` : (j.cost ? `就任費用 ${j.cost}` : '條件就任')));
-        return `<div onclick="${disabled || mine ? '' : `pickJob('${j.id}')`}" id="jobpick-${j.id}"
-          style="border:2px solid ${selected&&!soon?'#c9a227':(mine?'#2d6a4f':'#8b5e3c')};border-radius:12px;padding:14px 10px;text-align:center;cursor:${disabled||mine?'not-allowed':'pointer'};background:${soon?'rgba(0,0,0,0.12)':(mine?'rgba(45,106,79,0.2)':(selected?'rgba(201,162,39,0.25)':'rgba(255,255,255,0.35)'))};opacity:${soon?0.42:(disabled?0.45:1)};filter:${soon?'grayscale(0.7)':''};">
-          <div style="font-size:2.4rem;line-height:1.2;margin-bottom:6px;">${j.icon}</div>
-          <div style="font-weight:700;font-size:1rem;">${j.title}</div>
-          <div style="font-size:0.75rem;color:#5a3a22;margin-top:4px;">${j.desc}</div>
-          <div style="font-size:0.75rem;margin-top:6px;color:${soon?'#8a6e4a':'#3d2414'};font-weight:${soon||mine?700:400};">
-            ${status}
-          </div>
+        return `<div class="job-pick-card" onclick="${disabled || mine ? '' : `pickJob('${j.id}')`}" id="jobpick-${j.id}"
+          style="border-color:${selected&&!soon?'#c9a227':(mine?'#2d6a4f':'#8b5e3c')};cursor:${disabled||mine?'not-allowed':'pointer'};background:${soon?'rgba(0,0,0,0.12)':(mine?'rgba(45,106,79,0.2)':(selected?'rgba(201,162,39,0.25)':'rgba(255,255,255,0.35)'))};opacity:${soon?0.42:(disabled?0.45:1)};filter:${soon?'grayscale(0.7)':''};">
+          <div class="jp-icon">${j.icon}</div>
+          <div class="jp-title">${j.title}</div>
+          <div class="jp-desc">${j.desc}</div>
+          <div class="jp-status" style="color:${soon?'#8a6e4a':(mine?'#1b6b3a':'#3d2414')};">${status}</div>
         </div>`;
       }).join('');
       document.getElementById('jobModal').classList.add('show');
@@ -3844,7 +3927,7 @@
       return hud;
     }
     function startBuyPhaseTimer(forceNewDeadline) {
-      // 每位玩家各自 3 分鐘；換人重計；全員都看得到當前玩家剩餘秒數
+      // 每位玩家各自 2 分鐘；換人重計；全員都看得到當前玩家剩餘秒數
       if (buyTimerId) { clearInterval(buyTimerId); buyTimerId = null; }
       if (phase !== 'buy' && phase !== 'fluctuate') {
         clearBuyPhaseTimer();
@@ -3857,7 +3940,7 @@
       if (forceNewDeadline || !sameId(timerForPlayerId, whoId) || !turnDeadline) {
         timerForPlayerId = whoId;
         if (isMyTurn() || forceNewDeadline) {
-          turnDeadline = Date.now() + 3 * 60 * 1000;
+          turnDeadline = Date.now() + 2 * 60 * 1000;
           buyPhaseDeadline = turnDeadline;
           if (typeof syncPush === 'function') syncPush();
         }
@@ -4104,16 +4187,15 @@
       setupCountdownStarted = true;
       showCinema('全員準備完成', '3 秒後開始倒數…');
       setTimeout(() => {
-        let n = 5;
+        let n = 3;
         showCinema(String(n), '即將轉動輪盤');
         const iv = setInterval(() => {
           n -= 1;
           if (n <= 0) {
             clearInterval(iv);
             hideCinema();
-            // 僅房主發動輪盤，避免多人同時轉
             const meP = me();
-            const isHost = meP && (meP.isHost || meP.id === (room.hostId || 1));
+            const isHost = meP && (meP.isHost || sameId(meP.id, room.hostId || 1));
             if (isHost || !isOnlineMode()) {
               hostRunOrderSequence();
             } else {
@@ -4126,6 +4208,7 @@
       }, 3000);
     }
     function beginSetupFlow() {
+      try { requestWakeLock(); } catch(e) {}
       if (setupDone || setupStarted) return;
       setupStarted = true;
       phase = 'setup';
