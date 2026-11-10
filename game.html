@@ -473,6 +473,10 @@
     .pick-card .pg { font-size: 0.65rem; color: #5a3a22; margin-top: 2px; font-weight: 600; }
 
     .action-bar {
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      justify-content: center;
       position: fixed; bottom: 0; left: 0; right: 0;
       background: rgba(13,33,55,0.97);
       border-top: 2px solid var(--gold);
@@ -498,6 +502,25 @@
     }
     .action-bar button:disabled { cursor: not-allowed; }
     .btn-green { background: #2d6a4f; color: #fff; }
+    .btn-pause {
+      width: 46px; height: 46px; min-width: 46px; padding: 0 !important;
+      border-radius: 50%; border: 2px solid var(--gold) !important;
+      background: linear-gradient(160deg,#1a3a55,#0c1e30); color: #f3e5c5;
+      font-size: 1.25rem; display: inline-flex; align-items: center; justify-content: center;
+    }
+    .pause-menu-mask {
+      position: fixed; inset: 0; z-index: 180; background: rgba(6,14,24,0.65);
+      display: none; align-items: center; justify-content: center; padding: 16px;
+    }
+    .pause-menu-mask.show { display: flex; }
+    .pause-menu-box {
+      width: min(320px, 92vw); background: linear-gradient(160deg,#f3e5c5,#e6d4a8);
+      border: 3px solid #c9a227; border-radius: 16px; padding: 18px; text-align: center;
+      color: #1a120b;
+    }
+    .pause-menu-box h3 { margin: 0 0 12px; color: #3d2414; }
+    .pause-menu-box button { width: 100%; margin-top: 8px; padding: 12px; border-radius: 12px; font-weight: 700; }
+
     .btn-red { background: #9b2226; color: #fff; }
     .btn-purple { background: #5a3a7a; color: #fff; }
 
@@ -836,6 +859,13 @@
   </div>
 
   <div class="action-bar" id="actionBar"></div>
+  <div class="pause-menu-mask" id="pauseMenuMask" onclick="if(event.target===this)closePauseMenu()">
+    <div class="pause-menu-box">
+      <h3>⏸ 選單</h3>
+      <button type="button" class="btn-red" onclick="closePauseMenu();requestEndGame();">結束遊戲結算</button>
+      <button type="button" class="btn-navy" onclick="closePauseMenu()">返回遊戲</button>
+    </div>
+  </div>
 
   <!-- 買入 -->
   <div class="modal-mask" id="buyModal">
@@ -1023,6 +1053,34 @@
       <div class="play-reveal-cards" id="playRevealCards"></div>
     </div>
   </div>
+  <div class="modal-mask" id="privilegeModal">
+    <div class="modal-box" style="max-width:520px;">
+      <h3>💀 特權業面</h3>
+      <p style="font-size:0.85rem;color:#5a3a22;margin:0 0 10px;">第一能力免費；後兩項各需 1500 解鎖。物權主宰不可被刪除／複製。</p>
+      <div id="privilegeBody" style="display:flex;flex-direction:column;gap:10px;"></div>
+      <div class="modal-actions" style="margin-top:14px;">
+        <button type="button" class="btn-navy" onclick="document.getElementById('privilegeModal').classList.remove('show')">關閉</button>
+      </div>
+    </div>
+  </div>
+  <div class="modal-mask" id="gangsterModal">
+    <div class="modal-box" style="max-width:520px;">
+      <h3>💩 黑幫行動</h3>
+      <div id="gangsterBody"></div>
+      <div class="modal-actions" style="margin-top:14px;">
+        <button type="button" class="btn-navy" onclick="document.getElementById('gangsterModal').classList.remove('show')">關閉</button>
+      </div>
+    </div>
+  </div>
+  <div class="modal-mask" id="politicianModal">
+    <div class="modal-box" style="max-width:520px;">
+      <h3>😎 政治家行動</h3>
+      <div id="politicianBody"></div>
+      <div class="modal-actions" style="margin-top:14px;">
+        <button type="button" class="btn-navy" onclick="document.getElementById('politicianModal').classList.remove('show')">關閉</button>
+      </div>
+    </div>
+  </div>
   <div class="cinema-mask" id="cinemaMask">
     <div class="cinema-title" id="cinemaTitle">等待玩家載入中…</div>
     <div class="cinema-sub" id="cinemaSub"></div>
@@ -1149,6 +1207,30 @@
         sellPrice: 2000
       },
       {
+        id: 'privileged',
+        icon: '💀',
+        title: '特權者',
+        desc: '3000 就任／賣 2000。專屬特權頁：①每回合收「場上職業數×100」（免費）②花1500解鎖刪職業一次③花1500解鎖收一次職業者當回合預計收入',
+        cost: 3000,
+        sellPrice: 2000
+      },
+      {
+        id: 'gangster',
+        icon: '💩',
+        title: '黑幫',
+        desc: '3000 就任／賣 2000。每回合收人150；下回合強制順位1（正牌優先於複製）；每回合可拿1貨；可拒職業抽成(局限2)；每2回合付2000給資產最少者（變賣／消除也結算2000）',
+        cost: 3000,
+        sellPrice: 2000
+      },
+      {
+        id: 'politician',
+        icon: '😎',
+        title: '政治家',
+        desc: '3000 就任／賣 2000。每回合付每人150；花1500複製場上職業能力(除物權主宰，收入對半分)；全局2次向資產最高者索取（第1次1000、第2次1500）',
+        cost: 3000,
+        sellPrice: 2000
+      },
+      {
         id: 'shareholder',
         icon: '🏢',
         title: '股東',
@@ -1182,6 +1264,122 @@
     }
     function hasJob(player, jobId) {
       return ensureJobs(player).includes(jobId);
+    }
+    function initJobExtraState(pl) {
+      if (!pl) return;
+      if (!pl.privUnlock) pl.privUnlock = { ab2: false, ab3: false };
+      if (pl.privDeleteUsed == null) pl.privDeleteUsed = false;
+      if (pl.privIncomeSnatchUsed == null) pl.privIncomeSnatchUsed = false;
+      if (pl.gangsterRefuseLeft == null) pl.gangsterRefuseLeft = 2;
+      if (pl.gangsterGoodsTakenRound == null) pl.gangsterGoodsTakenRound = 0;
+      if (pl.gangsterBoughtRound == null) pl.gangsterBoughtRound = null;
+      if (pl.gangsterLastTaxRound == null) pl.gangsterLastTaxRound = null;
+      if (!Array.isArray(pl.politicianCopies)) pl.politicianCopies = [];
+      if (pl.politicianDemandLeft == null) pl.politicianDemandLeft = 2;
+      if (pl.jobPassiveRound == null) pl.jobPassiveRound = 0;
+    }
+    function effectiveHasJob(player, jobId) {
+      if (hasJob(player, jobId)) return true;
+      if (jobId === 'rights_master') return false;
+      return (player.politicianCopies || []).includes(jobId);
+    }
+    function countFieldJobs() {
+      let n = 0;
+      (room.players || []).forEach(pl => { n += ensureJobs(pl).length; });
+      return n;
+    }
+    function applyPassiveJobIncomes(p) {
+      if (!p || !sameId(p.id, myId)) return;
+      initJobExtraState(p);
+      if (p.jobPassiveRound === round) return;
+      p.jobPassiveRound = round;
+      // 特權者①
+      if (hasJob(p, 'privileged')) {
+        const gain = countFieldJobs() * 100;
+        if (gain > 0) {
+          pendingJobIncome += gain;
+          bankFunds = Math.max(0, bankFunds - gain);
+          showToast('特權者：場上職業×100 = +' + gain, 'success');
+        }
+      }
+      // 黑幫① 每人150
+      if (hasJob(p, 'gangster')) {
+        (room.players || []).forEach(pl => {
+          if (sameId(pl.id, p.id)) return;
+          pl.cash -= 150;
+          if (sameId(pl.id, myId)) jobFeesPaid += 150;
+          pendingJobIncome += 150;
+        });
+        showToast('黑幫：向每人收取 150', 'success');
+      }
+      // 政治家① 付每人150
+      if (hasJob(p, 'politician')) {
+        (room.players || []).forEach(pl => {
+          if (sameId(pl.id, p.id)) return;
+          p.cash -= 150;
+          if (sameId(p.id, myId)) jobFeesPaid += 150;
+          pl.cash += 150;
+          if (sameId(pl.id, myId)) pendingJobIncome += 150;
+        });
+        showToast('政治家：支付每人 150', 'error');
+      }
+      // 黑幫⑤ 每2回合付2000給資產最少者
+      if (hasJob(p, 'gangster') && p.gangsterBoughtRound != null) {
+        const held = round - p.gangsterBoughtRound;
+        if (held > 0 && held % 2 === 0 && p.gangsterLastTaxRound !== round) {
+          p.gangsterLastTaxRound = round;
+          let poorest = null, best = Infinity;
+          (room.players || []).forEach(pl => {
+            if (sameId(pl.id, p.id)) return;
+            const a = totalAssets(pl);
+            if (a < best) { best = a; poorest = pl; }
+          });
+          if (poorest) {
+            p.cash -= 2000;
+            poorest.cash += 2000;
+            showToast('黑幫義務：支付 2000 給資產最少的「' + poorest.name + '」', 'error');
+          }
+        }
+      }
+    }
+    function tryChargeJobFee(fromPlayer, amount, reason) {
+      // 黑幫可拒絕職業抽成（局限次數）
+      initJobExtraState(fromPlayer);
+      if (hasJob(fromPlayer, 'gangster') && (fromPlayer.gangsterRefuseLeft || 0) > 0) {
+        // 自動不拒，需玩家先在面板…簡化：有次數時扣一次並免疫這筆
+        // 改為：若玩家標記 gangsterRefuseNext
+        if (fromPlayer.gangsterRefuseNext) {
+          fromPlayer.gangsterRefuseNext = false;
+          fromPlayer.gangsterRefuseLeft -= 1;
+          showToast('黑幫拒絕支付職業抽成（' + reason + '）', 'success');
+          return false;
+        }
+      }
+      return true;
+    }
+    function shareJobFee(toPlayer, amount, fromPlayer) {
+      // 政治家複製職業：原持有者與複製者對半分
+      if (!toPlayer || !amount) return;
+      const jobIds = ensureJobs(toPlayer);
+      // 找是否有政治家複製了 toPlayer 的某一職業
+      const pols = (room.players || []).filter(pl => (pl.politicianCopies || []).length);
+      let shared = false;
+      pols.forEach(pol => {
+        if (sameId(pol.id, toPlayer.id)) return;
+        const overlap = (pol.politicianCopies || []).filter(jid => jobIds.includes(jid) && jid !== 'rights_master');
+        if (!overlap.length) return;
+        const half = Math.floor(amount / 2);
+        const rest = amount - half;
+        if (sameId(toPlayer.id, myId)) pendingJobIncome += rest;
+        else toPlayer.cash += rest;
+        if (sameId(pol.id, myId)) pendingJobIncome += half;
+        else pol.cash += half;
+        shared = true;
+      });
+      if (!shared) {
+        if (sameId(toPlayer.id, myId)) pendingJobIncome += amount;
+        else toPlayer.cash += amount;
+      }
     }
     function getJobPlayer(jobId) {
       return room.players.find(pl => hasJob(pl, jobId)) || null;
@@ -1523,49 +1721,57 @@
       toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
     }
 
+    function openPauseMenu() {
+      const m = document.getElementById('pauseMenuMask');
+      if (m) m.classList.add('show');
+    }
+    function closePauseMenu() {
+      const m = document.getElementById('pauseMenuMask');
+      if (m) m.classList.remove('show');
+    }
     function renderActionBar() {
       const bar = document.getElementById('actionBar');
+      const pauseBtn = `<button type="button" class="btn-pause" title="選單" onclick="openPauseMenu()">⏸</button>`;
       if (phase === 'setup') {
-        bar.innerHTML = '<span style="color:#c9a227;font-size:0.9rem;">開場準備中，請稍候…</span>';
+        bar.innerHTML = '<span style="color:#c9a227;font-size:0.9rem;">開場準備中，請稍候…</span>' + pauseBtn;
         return;
       }
       if (phase === 'bid') {
-        bar.innerHTML = '<span style="color:#e8c547;font-size:0.95rem;font-weight:700;">買回合：喊價搶操作順序中…</span>';
+        bar.innerHTML = '<span style="color:#e8c547;font-size:0.95rem;font-weight:700;">買順序：喊價中…</span>' + pauseBtn;
         return;
       }
-      // 不是自己的回合：只顯示等待
       if (!isMyTurn()) {
-        bar.innerHTML = `<span style="color:#e8c547;font-size:0.95rem;font-weight:700;">⏳ 目前輪到「${currentTurnName()}」操作，請等待…</span>
-          <button class="btn-red" onclick="requestEndGame()">結束遊戲結算</button>`;
+        bar.innerHTML = `<span style="color:#e8c547;font-size:0.95rem;font-weight:700;">⏳ 輪到「${currentTurnName()}」</span>` + pauseBtn;
         return;
       }
+      const p = me();
+      initJobExtraState(p);
+      let jobBtns = '';
+      if (hasJob(p, 'privileged')) jobBtns += `<button class="btn-navy" onclick="openPrivilegePanel()">💀特權</button>`;
+      if (hasJob(p, 'gangster')) jobBtns += `<button class="btn-navy" onclick="openGangsterPanel()">💩黑幫</button>`;
+      if (hasJob(p, 'politician')) jobBtns += `<button class="btn-navy" onclick="openPoliticianPanel()">😎政治</button>`;
       if (phase === 'fluctuate') {
         if (hasPlayedThisPhase) {
           bar.innerHTML = `
-            <button class="btn-green" style="opacity:0.7;" disabled>出牌完成 · 自動結束中…</button>
-            <button class="btn-red" onclick="requestEndGame()">結束遊戲結算</button>
-          `;
+            <button class="btn-green" style="opacity:0.7;" disabled>出牌完成…</button>
+            ${jobBtns}${pauseBtn}`;
         } else {
           bar.innerHTML = `
-            <span style="color:#8ab4d8;font-size:0.85rem;">輪到你 · 波動出牌</span>
-            <button class="btn-green" onclick="playCards()">出牌（完成後自動結束）</button>
+            <button class="btn-green" onclick="playCards()">出牌</button>
             <button class="btn-navy" style="opacity:0.45;" disabled id="btnEnd">請先出牌</button>
-            <button class="btn-red" onclick="requestEndGame()">結束遊戲結算</button>
-          `;
+            ${jobBtns}${pauseBtn}`;
         }
       } else {
         const rightsDisabled = round < 2;
         bar.innerHTML = `
-          <span style="color:#8ab4d8;font-size:0.85rem;">輪到你 · 買貨階段</span>
           <button class="btn-purple" onclick="openBorrowModal()">借貸</button>
           <button class="btn-red" onclick="openRepayModal()">還款</button>
           <button class="btn-navy" onclick="buyCardFromDeck()">買牌</button>
-          <button class="btn-gold" ${rightsDisabled ? 'style="opacity:0.4;cursor:not-allowed;" disabled title="第二回合起才可購買物權"' : 'onclick="openBuyRightsModal()"'}>${rightsDisabled ? '購買物權（第2回合起）' : '購買物權'}</button>
-          <button class="btn-navy" onclick="requestEndPhase()" id="btnEnd">結束我的回合</button>
-          <button class="btn-red" onclick="requestEndGame()">結束遊戲結算</button>
-        `;
+          <button class="btn-gold" ${rightsDisabled ? 'style="opacity:0.4;cursor:not-allowed;" disabled title="第二回合起"' : 'onclick="openBuyRightsModal()"'}>${rightsDisabled ? '物權(R2)' : '物權'}</button>
+          ${jobBtns}
+          <button class="btn-navy" onclick="requestEndPhase()" id="btnEnd">結束回合</button>
+          ${pauseBtn}`;
       }
-      const p = me();
       const btnEnd = document.getElementById('btnEnd');
       if (btnEnd && mustRepayThisTurn && p.debt > 0) {
         btnEnd.style.opacity = '0.45';
@@ -2465,25 +2671,25 @@
       const landlord = getJobPlayer('landlord');
       if (landlord && landlord.id !== p.id) {
         const fee = (sumVal === 0) ? 100 : Math.abs(sumVal) * 100;
-        if (p.id === myId) jobFeesPaid += fee;
-        else p.cash -= fee;
-        if (landlord.id === myId) {
-          pendingJobIncome += fee;
+        if (tryChargeJobFee(p, fee, '地主')) {
+          if (sameId(p.id, myId)) jobFeesPaid += fee;
+          else p.cash -= fee;
+          shareJobFee(landlord, fee, p);
           if ((p.debt||0) > 0 || p.cash < 0) sessionStats.causedDebt = true;
-        } else landlord.cash += fee;
-        feeNotes.push(`地主 ${fee}`);
+          feeNotes.push('地主 ' + fee);
+        }
       }
       // 牌王：只收「別人」出牌費，自己出牌不計入
       const cardKing = getJobPlayer('card_king');
       if (cardKing && cardKing.id !== p.id) {
         const fee = playedAll.length * 100;
-        if (p.id === myId) jobFeesPaid += fee;
-        else p.cash -= fee;
-        if (cardKing.id === myId) {
-          pendingJobIncome += fee;
+        if (tryChargeJobFee(p, fee, '牌王')) {
+          if (sameId(p.id, myId)) jobFeesPaid += fee;
+          else p.cash -= fee;
+          shareJobFee(cardKing, fee, p);
           if ((p.debt||0) > 0 || p.cash < 0) sessionStats.causedDebt = true;
-        } else cardKing.cash += fee;
-        feeNotes.push(`牌王 ${fee}`);
+          feeNotes.push('牌王 ' + fee);
+        }
       }
 
       mine.map(s => s.index).sort((a,b)=>b-a).forEach(i => p.cards.splice(i, 1));
@@ -2718,11 +2924,14 @@
     }
 
     function settleJobIncomeFor(p) {
+      if (p && sameId(p.id, myId)) {
+        try { applyPassiveJobIncomes(p); } catch (e) {}
+      }
       const income = pendingJobIncome;
       const fees = jobFeesPaid;
       const net = income - fees;
       // 僅在自己結束買貨回合時結算自己的收成／抽成
-      if (p && p.id === myId) {
+      if (p && sameId(p.id, myId)) {
         pendingJobIncome = 0;
         jobFeesPaid = 0;
         if (income > 0 || fees > 0) {
@@ -3003,6 +3212,170 @@
     }
 
     let pendingJobId = null;
+    function openPrivilegePanel() {
+      const p = me();
+      if (!hasJob(p, 'privileged')) { showToast('你不是特權者', 'error'); return; }
+      initJobExtraState(p);
+      const body = document.getElementById('privilegeBody');
+      const u2 = p.privUnlock.ab2, u3 = p.privUnlock.ab3;
+      body.innerHTML = `
+        <div style="padding:10px;border:1px solid #c9a227;border-radius:10px;background:rgba(255,255,255,0.35);">
+          <strong>① 每回合收 場上職業數×100</strong>（已啟用／免費）
+          <div style="font-size:0.8rem;color:#5a3a22;">本回合預估：${countFieldJobs()*100}</div>
+        </div>
+        <div style="padding:10px;border:1px solid #c9a227;border-radius:10px;background:rgba(255,255,255,0.35);">
+          <strong>② 刪除一次職業</strong> ${u2?'（已解鎖）':'（需 1500 解鎖）'}
+          ${!u2?`<button class="btn-gold" style="width:100%;margin-top:6px;" onclick="unlockPriv(2)">解鎖 1500</button>`:''}
+          ${u2&&p.privDeleteUsed?'<div style="color:#9b2226;">本局已使用</div>':`
+            <div style="margin-top:8px;font-size:0.85rem;">選擇要刪除的職業：</div>
+            ${(room.players||[]).map(pl=>ensureJobs(pl).filter(j=>j!=='rights_master').map(jid=>{
+              const j=JOBS.find(x=>x.id===jid);
+              return `<button class="btn-red" style="width:100%;margin-top:4px;" onclick="privDeleteJob(${pl.id},'${jid}')">刪除 ${pl.name} 的 ${j?j.title:jid}</button>`;
+            }).join('')).join('')||'<div>場上無可刪職業</div>'}`}
+        </div>
+        <div style="padding:10px;border:1px solid #c9a227;border-radius:10px;background:rgba(255,255,255,0.35);">
+          <strong>③ 收取職業者當回合預計收入</strong> ${u3?'（已解鎖）':'（需 1500 解鎖）'}（整局一次）
+          ${!u3?`<button class="btn-gold" style="width:100%;margin-top:6px;" onclick="unlockPriv(3)">解鎖 1500</button>`:''}
+          ${u3&&!p.privIncomeSnatchUsed?`<button class="btn-red" style="width:100%;margin-top:6px;" onclick="privSnatchIncome()">收取本回合預計職業收入（自己待領）</button>`:''}
+          ${u3&&p.privIncomeSnatchUsed?'<div style="color:#9b2226;">本局已使用</div>':''}
+        </div>`;
+      document.getElementById('privilegeModal').classList.add('show');
+    }
+    function unlockPriv(n) {
+      const p = me();
+      initJobExtraState(p);
+      if (p.cash < 1500) { showToast('現金不足 1500', 'error'); return; }
+      p.cash -= 1500; bankFunds += 1500;
+      if (n === 2) p.privUnlock.ab2 = true;
+      if (n === 3) p.privUnlock.ab3 = true;
+      showToast('已解鎖特權能力', 'success');
+      openPrivilegePanel();
+      if (typeof syncPush === 'function') syncPush();
+    }
+    function privDeleteJob(pid, jid) {
+      const p = me();
+      initJobExtraState(p);
+      if (!p.privUnlock.ab2 || p.privDeleteUsed) return;
+      const target = room.players.find(pl => sameId(pl.id, pid));
+      if (!target || !hasJob(target, jid) || jid === 'rights_master') { showToast('無法刪除', 'error'); return; }
+      target.jobs = ensureJobs(target).filter(id => id !== jid);
+      ensureJobs(target);
+      if (jid === 'gangster') {
+        // 被刪除也結算 2000
+        let poorest = null, best = Infinity;
+        (room.players||[]).forEach(pl => {
+          if (sameId(pl.id, target.id)) return;
+          const a = totalAssets(pl);
+          if (a < best) { best = a; poorest = pl; }
+        });
+        if (poorest) { target.cash -= 2000; poorest.cash += 2000; showToast('黑幫消除結算：2000 給「'+poorest.name+'」','error'); }
+        target.gangsterBoughtRound = null;
+      }
+      p.privDeleteUsed = true;
+      showToast('已刪除職業', 'success');
+      document.getElementById('privilegeModal').classList.remove('show');
+      render();
+      if (typeof syncPush === 'function') syncPush();
+    }
+    function privSnatchIncome() {
+      const p = me();
+      initJobExtraState(p);
+      if (!p.privUnlock.ab3 || p.privIncomeSnatchUsed) return;
+      // 收取自己目前待領職業收成（簡化：直接把 pending 再加成一次場上他人職業估值）
+      const extra = Math.max(pendingJobIncome, countFieldJobs() * 100);
+      pendingJobIncome += extra;
+      p.privIncomeSnatchUsed = true;
+      showToast('特權收取預計收入 +' + extra, 'success');
+      document.getElementById('privilegeModal').classList.remove('show');
+      render();
+      if (typeof syncPush === 'function') syncPush();
+    }
+    function openGangsterPanel() {
+      const p = me();
+      if (!hasJob(p, 'gangster')) { showToast('你不是黑幫', 'error'); return; }
+      initJobExtraState(p);
+      const taken = p.gangsterGoodsTakenRound === round;
+      const body = document.getElementById('gangsterBody');
+      body.innerHTML = `
+        <p style="font-size:0.85rem;">拒付職業抽成剩餘：<strong>${p.gangsterRefuseLeft}</strong> 次
+        ${p.gangsterRefuseLeft>0?`<button class="btn-red" style="width:100%;margin-top:6px;" onclick="(function(){const p=me();initJobExtraState(p);p.gangsterRefuseNext=true;showToast('下一筆職業抽成將拒絕', 'success');if(typeof syncPush==='function')syncPush();})()">啟用：拒絕下一筆職業抽成</button>`:''}
+        </p>
+        <p style="font-size:0.85rem;">本回合搶貨：${taken?'已使用':'可選 1 種貨物各+1'}</p>
+        ${!taken ? GOODS.map(g => `<button class="btn-gold" style="width:100%;margin-top:4px;" onclick="gangsterTakeGood('${g.id}')">${g.icon} ${g.name}（剩${g.stock}）</button>`).join('') : ''}
+        <p style="font-size:0.8rem;color:#5a3a22;margin-top:8px;">強制順位第1會在買順序結算時自動生效。</p>`;
+      document.getElementById('gangsterModal').classList.add('show');
+    }
+    function gangsterTakeGood(gid) {
+      const p = me();
+      initJobExtraState(p);
+      if (p.gangsterGoodsTakenRound === round) { showToast('本回合已搶過貨', 'error'); return; }
+      const g = GOODS.find(x => x.id === gid);
+      if (!g || g.stock <= 0) { showToast('沒有庫存', 'error'); return; }
+      g.stock -= 1;
+      p.holdings[gid] = (p.holdings[gid] || 0) + 1;
+      p.gangsterGoodsTakenRound = round;
+      showToast('黑幫取得 ' + g.name + ' ×1', 'success');
+      document.getElementById('gangsterModal').classList.remove('show');
+      render();
+      if (typeof syncPush === 'function') syncPush();
+    }
+    function openPoliticianPanel() {
+      const p = me();
+      if (!hasJob(p, 'politician')) { showToast('你不是政治家', 'error'); return; }
+      initJobExtraState(p);
+      const takenOnField = {};
+      (room.players||[]).forEach(pl => {
+        if (sameId(pl.id, p.id)) return;
+        ensureJobs(pl).forEach(jid => { if (jid !== 'rights_master') takenOnField[jid] = pl; });
+      });
+      const body = document.getElementById('politicianBody');
+      body.innerHTML = `
+        <p>已複製：${(p.politicianCopies||[]).map(id=>{const j=JOBS.find(x=>x.id===id);return j?j.title:id;}).join('、')||'無'}</p>
+        <p>向最高資產者索取剩餘：${p.politicianDemandLeft} 次（第1次1000／第2次1500）</p>
+        <div style="margin:8px 0;font-weight:700;">複製場上職業（1500）</div>
+        ${Object.keys(takenOnField).map(jid => {
+          const j = JOBS.find(x=>x.id===jid);
+          const already = (p.politicianCopies||[]).includes(jid);
+          return `<button class="btn-gold" style="width:100%;margin-top:4px;" ${already?'disabled':''} onclick="politicianCopy('${jid}')">${j?j.icon+' '+j.title:jid}${already?'（已複製）':''}</button>`;
+        }).join('') || '<div>場上無可複製職業</div>'}
+        <button class="btn-red" style="width:100%;margin-top:12px;" onclick="politicianDemand()">向當下資產最高者索取（第1次1000／第2次1500）</button>`;
+      document.getElementById('politicianModal').classList.add('show');
+    }
+    function politicianCopy(jid) {
+      const p = me();
+      initJobExtraState(p);
+      if (jid === 'rights_master') { showToast('不可複製物權主宰', 'error'); return; }
+      if ((p.politicianCopies||[]).includes(jid)) return;
+      const exists = (room.players||[]).some(pl => !sameId(pl.id,p.id) && hasJob(pl,jid));
+      if (!exists) { showToast('場上無人持有此職業', 'error'); return; }
+      if (p.cash < 1500) { showToast('現金不足 1500', 'error'); return; }
+      p.cash -= 1500; bankFunds += 1500;
+      p.politicianCopies.push(jid);
+      showToast('已複製職業能力（收入對半分）', 'success');
+      openPoliticianPanel();
+      if (typeof syncPush === 'function') syncPush();
+    }
+    function politicianDemand() {
+      const p = me();
+      initJobExtraState(p);
+      if (p.politicianDemandLeft <= 0) { showToast('本局次數已用完', 'error'); return; }
+      let richest = null, best = -Infinity;
+      (room.players||[]).forEach(pl => {
+        if (sameId(pl.id, p.id)) return;
+        const a = totalAssets(pl);
+        if (a > best) { best = a; richest = pl; }
+      });
+      if (!richest) return;
+      // 第1次1000、第2次1500（用過次數：2→第1次，1→第2次）
+      const amt = p.politicianDemandLeft >= 2 ? 1000 : 1500;
+      richest.cash -= amt;
+      pendingJobIncome += amt;
+      p.politicianDemandLeft -= 1;
+      showToast('向「' + richest.name + '」收取 ' + amt, 'success');
+      document.getElementById('politicianModal').classList.remove('show');
+      render();
+      if (typeof syncPush === 'function') syncPush();
+    }
     function openJobModal() {
       const p = me();
       ensureJobs(p);
@@ -3110,6 +3483,8 @@
       }
       p.jobs.push(job.id);
       ensureJobs(p);
+      initJobExtraState(p);
+      if (job.id === 'gangster') p.gangsterBoughtRound = round;
       closeModals();
       render();
       if (typeof syncPush === 'function') syncPush();
@@ -3133,6 +3508,22 @@
       const job = JOBS.find(j => j.id === jobId);
       if (job && job.sellPrice && job.sellPrice > 0) {
         const price = job.sellPrice;
+        if (jobId === 'gangster') {
+          // 變賣結算 2000 給資產最少者
+          let poorest = null, best = Infinity;
+          (room.players || []).forEach(pl => {
+            if (sameId(pl.id, p.id)) return;
+            const a = totalAssets(pl);
+            if (a < best) { best = a; poorest = pl; }
+          });
+          if (poorest) {
+            p.cash -= 2000;
+            poorest.cash += 2000;
+            showToast('黑幫結清義務：2000 → ' + poorest.name, 'error');
+          }
+          p.gangsterBoughtRound = null;
+        }
+        if (jobId === 'politician') p.politicianCopies = [];
         p.cash += price;
         bankFunds -= price;
         p.jobs = p.jobs.filter(id => id !== jobId);
@@ -3604,7 +3995,7 @@
       const modal = document.getElementById('bidModal');
       if (modal) modal.classList.remove('show');
       // 依出價高到低；同價用 id 穩定排序（全端一致，避免各端隨機不同）
-      const arr = (room.players || []).map(pl => ({
+      let arr = (room.players || []).map(pl => ({
         id: Number(pl.id),
         name: pl.name,
         bid: bidState.bids[pl.id] || bidState.bids[String(pl.id)] || 0
@@ -3613,6 +4004,15 @@
         if (b.bid !== a.bid) return b.bid - a.bid;
         return a.id - b.id;
       });
+      // 黑幫強制順位第1（正牌優先於政治家複製）
+      const realG = (room.players || []).find(pl => hasJob(pl, 'gangster'));
+      const copyG = (room.players || []).find(pl => !hasJob(pl, 'gangster') && (pl.politicianCopies || []).includes('gangster'));
+      const forceId = realG ? Number(realG.id) : (copyG ? Number(copyG.id) : null);
+      if (forceId != null) {
+        const rest = arr.filter(x => Number(x.id) !== forceId);
+        const head = arr.find(x => Number(x.id) === forceId);
+        if (head) arr = [head].concat(rest);
+      }
       turnOrder = arr.map(x => Number(x.id));
       phaseDoneIds = {};
       currentTurnId = Number(turnOrder[0] || myId);
