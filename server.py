@@ -20,12 +20,17 @@ from websockets.asyncio.server import ServerConnection
 HOST = "0.0.0.0"
 PORT = int(os.environ.get("PORT", "8766"))
 
-def _find_static_dir():
+def _find_static_dir() -> Path:
+    """尋找含 lobby.html 的目錄（相容根目錄或 server/ 子目錄部署）。"""
     here = Path(__file__).resolve().parent
-    for c in (here, here.parent):
-        if (c / "lobby.html").is_file():
-            return c
-    return here
+    candidates = [here, here.parent, Path.cwd(), Path.cwd() / "src"]
+    for c in candidates:
+        try:
+            if (c / "lobby.html").is_file():
+                return c
+        except Exception:
+            pass
+    return here  # 後備
 
 STATIC_DIR = _find_static_dir()
 
@@ -81,6 +86,37 @@ async def broadcast_room(
         clients.pop(ws, None)
 
 
+
+def list_public_rooms() -> list:
+    out = []
+    for code, room in rooms.items():
+        if room.get("status") != "waiting":
+            continue
+        host = next((p for p in room["players"] if p.get("isHost")), None)
+        out.append({
+            "code": room["code"],
+            "maxPlayers": room["maxPlayers"],
+            "count": len(room["players"]),
+            "hostName": (host or {}).get("name") or "船長",
+            "status": room["status"],
+        })
+    out.sort(key=lambda x: x["code"])
+    return out
+
+
+async def publish_rooms_list() -> None:
+    payload = {"type": "rooms_list", "rooms": list_public_rooms()}
+    raw = __import__("json").dumps(payload, ensure_ascii=False)
+    dead = set()
+    for ws in list(clients.keys()):
+        try:
+            await ws.send(raw)
+        except Exception:
+            dead.add(ws)
+    for ws in dead:
+        clients.pop(ws, None)
+
+
 async def handle_create(ws: ServerConnection, data: Dict[str, Any]) -> None:
     name = (data.get("playerName") or "船長").strip()[:12] or "船長"
     try:
@@ -115,6 +151,7 @@ async def handle_create(ws: ServerConnection, data: Dict[str, Any]) -> None:
     clients[ws] = {"code": code, "playerId": 1, "name": name}
 
     await send(ws, {"type": "created", "playerId": 1, "room": public_room(room)})
+    await publish_rooms_list()
 
 
 async def handle_join(ws: ServerConnection, data: Dict[str, Any]) -> None:
@@ -152,6 +189,7 @@ async def handle_join(ws: ServerConnection, data: Dict[str, Any]) -> None:
 
     await send(ws, {"type": "joined", "playerId": pid, "room": public_room(room)})
     await broadcast_room(code, {"type": "room_update", "room": public_room(room)})
+    await publish_rooms_list()
 
 
 async def handle_reconnect(ws: ServerConnection, data: Dict[str, Any]) -> None:
@@ -204,6 +242,7 @@ async def handle_start(ws: ServerConnection, data: Dict[str, Any]) -> None:
         return
     room["status"] = "playing"
     await broadcast_room(meta["code"], {"type": "game_start", "room": public_room(room)})
+    await publish_rooms_list()
 
 
 async def handle_game_state(ws: ServerConnection, data: Dict[str, Any]) -> None:
@@ -282,6 +321,8 @@ async def on_message(ws: ServerConnection, raw: str) -> None:
         await handle_game_event(ws, data)
     elif t == "chat":
         await handle_chat(ws, data)
+    elif t == "list_rooms":
+        await send(ws, {"type": "rooms_list", "rooms": list_public_rooms()})
     elif t == "ping":
         await send(ws, {"type": "pong"})
     else:
@@ -341,18 +382,24 @@ async def process_request(connection, request):
 
 async def on_connect(ws: ServerConnection) -> None:
     clients[ws] = {}
-    await send(
-        ws,
-        {
-            "type": "hello",
-            "message": "大航海期貨所聯機伺服器",
-            "port": PORT,
-        },
-    )
     try:
+        await send(
+            ws,
+            {
+                "type": "hello",
+                "message": "大航海期貨所聯機伺服器",
+                "port": PORT,
+            },
+        )
         async for raw in ws:
             await on_message(ws, raw)
+    except websockets.exceptions.ConnectionClosed:
+        pass  # 客戶端換頁／關閉，屬正常
+    except Exception as e:
+        print(f"[期貨所] 連線結束: {type(e).__name__}: {e}")
     finally:
+        # 換頁（大廳→等待室→遊戲）會短暫斷線，不可立刻把玩家移出房間，
+        # 否則房間會被刪除、另一端會看到「進房又消失／找不到房間」。
         meta = clients.pop(ws, None) or {}
         code = meta.get("code")
         pid = meta.get("playerId")
@@ -368,9 +415,12 @@ async def on_connect(ws: ServerConnection) -> None:
                 "name": meta.get("name"),
             },
         )
+        await publish_rooms_list()
+
 
 async def main() -> None:
     print(f"[期貨所] STATIC={STATIC_DIR}")
+    print(f"[期貨所] lobby exists? {(STATIC_DIR / 'lobby.html').is_file()}")
     print(f"[期貨所] http://0.0.0.0:{PORT}/lobby.html")
     print(f"[期貨所] ws://0.0.0.0:{PORT}/")
     async with websockets.serve(

@@ -1640,6 +1640,7 @@
     let phase = 'buy';
     let selectedCards = [];
     let mustRepayThisTurn = false;
+        // 還清後可再借（額度仍受本回合上限限制）
     let hasPlayedThisPhase = false; // 波動階段每人只能出牌一次
     let turnOrder = [];       // 玩家 id 順序
     let turnDir = 'cw';      // cw | ccw
@@ -1766,11 +1767,31 @@
     dealInitialCards();
 
     function me() { return room.players.find(p => p.id === myId) || room.players[0]; }
+    function activeSeatOrder() {
+      // 只保留場上仍存在的玩家，避免人數少於預設時共享對象指錯
+      const alive = new Set((room.players || []).map(p => Number(p.id)));
+      let order = (seatOrder && seatOrder.length)
+        ? seatOrder.map(Number).filter(id => alive.has(id))
+        : (room.players || []).map(p => Number(p.id));
+      if (!order.length) order = (room.players || []).map(p => Number(p.id));
+      // 若 seatOrder 被過濾後不足 2 人，回退實際玩家順序
+      if (order.length < (room.players || []).length) {
+        const rest = (room.players || []).map(p => Number(p.id)).filter(id => !order.includes(id));
+        order = order.concat(rest);
+      }
+      return order;
+    }
     function neighbor() {
-      const order = (seatOrder && seatOrder.length) ? seatOrder : (room.players || []).map(p => p.id);
-      const idx = order.indexOf(myId);
-      const nid = order[(idx < 0 ? 0 : idx + 1) % order.length];
-      return room.players.find(p => p.id === nid) || room.players[(room.players.findIndex(p => p.id === myId) + 1) % room.players.length];
+      const order = activeSeatOrder();
+      if (!order.length) return room.players[0] || me();
+      let idx = order.findIndex(id => sameId(id, myId));
+      if (idx < 0) idx = 0;
+      const nid = order[(idx + 1) % order.length];
+      const n = (room.players || []).find(p => sameId(p.id, nid));
+      if (n) return n;
+      // 後備：陣列上下一位
+      const i2 = (room.players || []).findIndex(p => sameId(p.id, myId));
+      return room.players[(i2 < 0 ? 0 : i2 + 1) % room.players.length];
     }
     function getZone(price) {
       if (price <= 150) return 'green';
@@ -2245,25 +2266,25 @@
     function openBorrowModal() {
       const p = me();
       if (p.borrowedThisRound === undefined) p.borrowedThisRound = 0;
-      // 未一次還清 100% 債務前，不可再借（含銀行職業）
+      // 仍有未結清本金時不可再借；還清 100% 後（含同一回合還清）可再借
       if ((p.debt || 0) > 0 || (p.debtAnchor || 0) > 0) {
-        showToast('尚有未清償債務，須一次還清 100% 後才能再借（最多 1500）', 'error');
+        showToast('尚有未清償債務。下一回合內還清 100% 後即可再借', 'error');
         return;
       }
-      const remain = BORROW_LIMIT - p.borrowedThisRound;
+      const remain = BORROW_LIMIT - (p.borrowedThisRound || 0);
       if (remain < 50) {
-        showToast(`本回合借貸額度已用完（每回合上限 ${BORROW_LIMIT}，下回合刷新）`, 'error');
+        showToast(`本回合借貸額度已用完（上限 ${BORROW_LIMIT}，下回合刷新）`, 'error');
         return;
       }
       if (hasJob(p, 'bank') && p.bankBorrowedThisRound) {
         showToast('銀行本回合已借貸過，下回合才可再借', 'error');
         return;
       }
-      document.getElementById('borrowCurrentDebt').textContent = p.debt;
+      document.getElementById('borrowCurrentDebt').textContent = p.debt || 0;
       document.getElementById('borrowRemain').textContent = remain;
       qtyLimits.borrowAmount = { min: 50, max: remain, step: 50 };
       document.getElementById('borrowAmount').value = 50;
-      document.getElementById('borrowAmountHint').textContent = `可借 50～${remain}（上限 ${BORROW_LIMIT}；須還清後才能再借）`;
+      document.getElementById('borrowAmountHint').textContent = `可借 50～${remain}（上限 ${BORROW_LIMIT}；還清後可再借）`;
       document.getElementById('borrowModal').classList.add('show');
     }
 
@@ -2815,20 +2836,16 @@
     }
 
     function refillCards() {
+      // 只補自己的公開組，不改寫隔壁真實手牌（避免共享牌被替換）
       const p = me();
-      const n = neighbor();
       while (p.cards.length < 8) {
         const card = drawRandomFromDeck();
         if (!card) break;
         p.cards.push(card);
       }
-      while (n.cards.length < 8) {
-        const card = drawRandomFromDeck();
-        if (!card) break;
-        n.cards.push(card);
-      }
       closeModals();
       render();
+      if (typeof syncPush === 'function') syncPush();
       showToast(`已從牌庫補牌（牌庫剩 ${totalDeckLeft()} 張）`, 'success');
       if (window._autoEndAfterRefill) {
         window._autoEndAfterRefill = false;
@@ -3170,6 +3187,10 @@
           }
           phaseDoneIds = {};
           round = Number(round) + 1;
+          (room.players || []).forEach(pl => {
+            pl.borrowedThisRound = 0;
+            pl.bankBorrowedThisRound = false;
+          });
           resetRightsFees();
           showToast(`波動結束 → 第 ${round} 回合：先買順序（喊價）`, 'success');
           if (isOnlineMode() && window.GameNet) {
@@ -3303,26 +3324,29 @@
       initJobExtraState(p);
       const body = document.getElementById('privilegeBody');
       const u2 = p.privUnlock.ab2, u3 = p.privUnlock.ab3;
+      const bigBtn = 'width:100%;margin-top:10px;padding:14px 12px;font-size:1rem;font-weight:800;border-radius:12px;min-height:48px;';
       body.innerHTML = `
-        <div style="padding:10px;border:1px solid #c9a227;border-radius:10px;background:rgba(255,255,255,0.35);">
-          <strong>① 每回合收 場上職業數×100</strong>（已啟用／免費）
-          <div style="font-size:0.8rem;color:#5a3a22;">本回合預估：${countFieldJobs()*100}</div>
+        <div style="padding:14px;border:2px solid #c9a227;border-radius:14px;background:rgba(255,255,255,0.4);">
+          <strong style="font-size:1.05rem;">① 每回合收 場上職業數×100</strong>
+          <div style="font-size:0.85rem;color:#5a3a22;margin-top:6px;">已啟用／免費 · 本回合預估 <b>${countFieldJobs()*100}</b></div>
         </div>
-        <div style="padding:10px;border:1px solid #c9a227;border-radius:10px;background:rgba(255,255,255,0.35);">
-          <strong>② 刪除一次職業</strong> ${u2?'（已解鎖）':'（需 1500 解鎖）'}
-          ${!u2?`<button class="btn-gold" style="width:100%;margin-top:6px;" onclick="unlockPriv(2)">解鎖 1500</button>`:''}
-          ${u2&&p.privDeleteUsed?'<div style="color:#9b2226;">本局已使用</div>':`
-            <div style="margin-top:8px;font-size:0.85rem;">選擇要刪除的職業：</div>
+        <div style="padding:14px;border:2px solid #c9a227;border-radius:14px;background:rgba(255,255,255,0.4);">
+          <strong style="font-size:1.05rem;">② 刪除一次職業</strong>
+          <div style="font-size:0.85rem;margin-top:4px;">${u2?'已解鎖':'需 1500 解鎖'}</div>
+          ${!u2?`<button class="btn-gold" style="${bigBtn}" onclick="unlockPriv(2)">解鎖能力 · 1500</button>`:''}
+          ${u2&&p.privDeleteUsed?'<div style="color:#9b2226;margin-top:8px;font-weight:700;">本局已使用</div>':(u2?`
+            <div style="margin-top:10px;font-size:0.9rem;font-weight:700;">選擇要刪除的職業</div>
             ${(room.players||[]).map(pl=>ensureJobs(pl).filter(j=>j!=='rights_master').map(jid=>{
               const j=JOBS.find(x=>x.id===jid);
-              return `<button class="btn-red" style="width:100%;margin-top:4px;" onclick="privDeleteJob(${pl.id},'${jid}')">刪除 ${pl.name} 的 ${j?j.title:jid}</button>`;
-            }).join('')).join('')||'<div>場上無可刪職業</div>'}`}
+              return `<button class="btn-red" style="${bigBtn}" onclick="privDeleteJob(${pl.id},'${jid}')">刪除 ${pl.name} 的 ${j?j.title:jid}</button>`;
+            }).join('')).join('')||'<div style="margin-top:8px;">場上無可刪職業</div>'}`:'')}
         </div>
-        <div style="padding:10px;border:1px solid #c9a227;border-radius:10px;background:rgba(255,255,255,0.35);">
-          <strong>③ 收取職業者當回合預計收入</strong> ${u3?'（已解鎖）':'（需 1500 解鎖）'}（整局一次）
-          ${!u3?`<button class="btn-gold" style="width:100%;margin-top:6px;" onclick="unlockPriv(3)">解鎖 1500</button>`:''}
-          ${u3&&!p.privIncomeSnatchUsed?`<button class="btn-red" style="width:100%;margin-top:6px;" onclick="privSnatchIncome()">收取本回合預計職業收入（自己待領）</button>`:''}
-          ${u3&&p.privIncomeSnatchUsed?'<div style="color:#9b2226;">本局已使用</div>':''}
+        <div style="padding:14px;border:2px solid #c9a227;border-radius:14px;background:rgba(255,255,255,0.4);">
+          <strong style="font-size:1.05rem;">③ 收取當回合預計職業收入</strong>
+          <div style="font-size:0.85rem;margin-top:4px;">${u3?'已解鎖':'需 1500 解鎖'} · 整局一次</div>
+          ${!u3?`<button class="btn-gold" style="${bigBtn}" onclick="unlockPriv(3)">解鎖能力 · 1500</button>`:''}
+          ${u3&&!p.privIncomeSnatchUsed?`<button class="btn-red" style="${bigBtn}" onclick="privSnatchIncome()">收取本回合預計職業收入</button>`:''}
+          ${u3&&p.privIncomeSnatchUsed?'<div style="color:#9b2226;margin-top:8px;font-weight:700;">本局已使用</div>':''}
         </div>`;
       document.getElementById('privilegeModal').classList.add('show');
     }
@@ -3381,13 +3405,19 @@
       initJobExtraState(p);
       const taken = p.gangsterGoodsTakenRound === round;
       const body = document.getElementById('gangsterBody');
+      const bigBtn = 'width:100%;margin-top:10px;padding:14px 12px;font-size:1rem;font-weight:800;border-radius:12px;min-height:48px;';
       body.innerHTML = `
-        <p style="font-size:0.85rem;">拒付職業抽成剩餘：<strong>${p.gangsterRefuseLeft}</strong> 次
-        ${p.gangsterRefuseLeft>0?`<button class="btn-red" style="width:100%;margin-top:6px;" onclick="(function(){const p=me();initJobExtraState(p);p.gangsterRefuseNext=true;showToast('下一筆職業抽成將拒絕', 'success');if(typeof syncPush==='function')syncPush();})()">啟用：拒絕下一筆職業抽成</button>`:''}
-        </p>
-        <p style="font-size:0.85rem;">本回合搶貨：${taken?'已使用':'可選 1 種貨物各+1'}</p>
-        ${!taken ? GOODS.map(g => `<button class="btn-gold" style="width:100%;margin-top:4px;" onclick="gangsterTakeGood('${g.id}')">${g.icon} ${g.name}（剩${g.stock}）</button>`).join('') : ''}
-        <p style="font-size:0.8rem;color:#5a3a22;margin-top:8px;">強制順位第1會在買順序結算時自動生效。</p>`;
+        <div style="padding:14px;border:2px solid #c9a227;border-radius:14px;background:rgba(255,255,255,0.4);margin-bottom:10px;">
+          <div style="font-weight:800;font-size:1.05rem;">拒付職業抽成</div>
+          <div style="margin-top:4px;">剩餘 <strong style="font-size:1.2rem;">${p.gangsterRefuseLeft}</strong> 次（整局限 2 次）</div>
+          ${p.gangsterRefuseLeft>0?`<button class="btn-red" style="${bigBtn}" onclick="(function(){const p=me();initJobExtraState(p);p.gangsterRefuseNext=true;showToast('下一筆職業抽成將拒絕', 'success');if(typeof syncPush==='function')syncPush();})()">啟用：拒絕下一筆抽成</button>`:'<div style="margin-top:8px;color:#9b2226;">次數已用完</div>'}
+        </div>
+        <div style="padding:14px;border:2px solid #c9a227;border-radius:14px;background:rgba(255,255,255,0.4);">
+          <div style="font-weight:800;font-size:1.05rem;">本回合搶貨 ×1</div>
+          <div style="margin-top:4px;font-size:0.9rem;">${taken?'本回合已使用':'點選一種貨物，庫存 -1、你持倉 +1'}</div>
+          ${!taken ? GOODS.map(g => `<button class="btn-gold" style="${bigBtn}" onclick="gangsterTakeGood('${g.id}')">${g.icon} ${g.name}（剩 ${g.stock}）</button>`).join('') : ''}
+        </div>
+        <p style="font-size:0.85rem;color:#5a3a22;margin-top:12px;line-height:1.4;">強制順位第 1 會在「買順序」結算時自動生效（正牌優先於複製）。</p>`;
       document.getElementById('gangsterModal').classList.add('show');
     }
     function gangsterTakeGood(gid) {
@@ -3763,8 +3793,10 @@
       firstPlayerId = Number(firstId);
       turnDir = dir || 'cw';
       turnOrder = buildOrderFromFirst(firstPlayerId, turnDir).map(Number);
-      // 座位序固定整局（共享隔壁用）
+      // 座位序固定整局（共享隔壁用）— 僅含實際在場玩家
       if (!seatOrder.length) seatOrder = turnOrder.slice();
+      else seatOrder = seatOrder.map(Number).filter(id => (room.players||[]).some(p => sameId(p.id, id)));
+      if (seatOrder.length < (room.players||[]).length) seatOrder = turnOrder.slice();
       setupDone = true;
       phase = 'buy';
       phaseDoneIds = {};

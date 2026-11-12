@@ -143,6 +143,9 @@
     startGame() {
       this.send({ type: 'start' });
     },
+    listRooms() {
+      this.send({ type: 'list_rooms' });
+    },
     pushState(state) {
       this.send({ type: 'game_state', state });
     },

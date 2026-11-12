@@ -154,6 +154,25 @@
     .rules-box h3:first-child { margin-top: 0; }
     .rules-box ul { padding-left: 1.2em; margin-bottom: 6px; }
     .rules-box li { margin: 3px 0; }
+    .room-list-box {
+      max-height: 220px; overflow-y: auto; border: 2px solid rgba(201,162,39,0.45);
+      border-radius: 12px; background: rgba(12,28,48,0.06); padding: 8px;
+    }
+    .room-list-empty { text-align: center; color: #8a6e4a; padding: 16px 8px; font-size: 0.9rem; }
+    .room-list-item {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      padding: 10px 12px; margin-bottom: 6px; border-radius: 10px;
+      background: linear-gradient(90deg, rgba(243,229,197,0.9), rgba(230,212,168,0.85));
+      border: 1px solid rgba(201,162,39,0.55); cursor: pointer;
+    }
+    .room-list-item:active { transform: scale(0.98); }
+    .room-list-item .rl-code { font-weight: 800; color: #3d2414; letter-spacing: 0.04em; }
+    .room-list-item .rl-meta { font-size: 0.78rem; color: #5a3a22; }
+    .room-list-item .rl-join {
+      flex-shrink: 0; padding: 8px 12px; border-radius: 8px; border: none;
+      background: linear-gradient(180deg,#e8c547,#c9a227); color: #1a120b;
+      font-weight: 800; font-size: 0.85rem; cursor: pointer;
+    }
     .title-banner-card {
       position: relative; border-radius: 12px; overflow: hidden;
       border: 2px solid var(--gold); margin-bottom: 8px;
@@ -307,53 +326,51 @@
       <div class="rules-box">
         <h3>基本設定</h3>
         <ul>
-          <li>3～5 人（測試可 2 人），起始資金 <strong>1000</strong>，遊戲庫資金 676767</li>
-          <li>六種貨物：棉花、煤炭、茶葉、咖啡、小麥、玉米；各 20 張，開局市價 100</li>
-          <li>勝利：<strong>淨總資產</strong>（現金＋持倉市值－債務）達 <strong>10000</strong>；負債不計入、不可靠借款衝關；負債還不起則淘汰</li>
-          <li>顯示：現金、持倉市值、總資產分開；有職業／物權時顯示其價值</li>
+          <li>2～5 人聯機，起始資金 <strong>1000</strong>，遊戲庫資金 676767</li>
+          <li>六種貨物：綠帽、潤滑油、痘痘貼、紅姐口罩、黑人服務、五老星徽章；各 12 個，開局市價 150</li>
+          <li>勝利：<strong>淨總資產</strong>（現金＋持倉市值－債務）達目標；負債還不起則淘汰</li>
+          <li>現金／持倉市值／總資產分開顯示；職業收成（綠）與職業抽成（紅）另計</li>
         </ul>
-        <h3>價格棋盤（40 格）</h3>
+        <h3>價格棋盤</h3>
         <ul>
-          <li>出牌點數 = 移動格數（+2 前進 2 格）</li>
+          <li>出牌點數＝移動格數（+2 前進 2 格）</li>
           <li>區間：綠 0～150／黃 151～300／紅 301～420／藍 421～500</li>
-          <li>價錢為整數與五的倍數，含起始 100</li>
         </ul>
         <h3>回合流程</h3>
         <ul>
-          <li>第 1 回合起：<strong>買貨階段</strong> → <strong>波動出牌</strong></li>
-          <li>波動階段必須先出公開牌（自己＋隔壁各 1 張）才能結束；僅出私有牌不算</li>
-          <li>每人本波動階段只能出牌一次</li>
+          <li>第 1 回合：輪盤定序 → <strong>買貨</strong> → <strong>波動出牌</strong>（無買順序）</li>
+          <li>第 2 回合起：波動結束後先<strong>買順序（喊價）</strong>→ 再買貨 → 再波動</li>
+          <li>買順序只決定操作先後，不另算一回合</li>
+          <li>波動須自己公開組＋隔壁副牌組各出 1 張；每人本階段只能出一次</li>
         </ul>
-        <h3>波動牌</h3>
+        <h3>波動牌與共享</h3>
         <ul>
-          <li>點數：±6、±4、±2（無 ±8），牌庫共 96 張</li>
-          <li>每人 8 張公開組；與隔壁共享出牌（各出 1 張）</li>
-          <li>可花金錢買牌庫私有牌（一律 500），波動時可另打出</li>
-          <li>不同貨物各走各的格子</li>
+          <li>每人 8 張公開組；副牌組＝依開場座位固定的隔壁玩家手牌</li>
+          <li>人數少於房間上限時，共享對象只依<strong>實際在場玩家</strong>計算</li>
+          <li>可買牌庫私有牌，波動時可另打出（不與公開組共用）</li>
         </ul>
         <h3>借貸</h3>
         <ul>
-          <li>借貸上限 <strong>1500</strong>；<strong>未結清本金前不可再借</strong>（含銀行職業）</li>
-          <li>每回合至少還「應還本金」的 50% 才能過關；未湊滿 100% 則本金不減少，下回合仍要再還 50%</li>
-          <li>同一回合可分次付款：例如借 1000，先還 500、再補 500 湊滿 100% 即可結清</li>
+          <li>每回合借貸上限 <strong>1500</strong>；下回合刷新額度</li>
+          <li>每回合至少還本金 50% 才能過關；未一次還滿 100% 則本金不減，下回合仍須再還 50%</li>
+          <li><strong>下一回合內還清 100% 後即可再借</strong>（同一回合還清也可再借，仍受當回合額度限制）</li>
           <li>銀行職業：自己借款應還本金＝借入的 50%；銀行每回合限借一次</li>
         </ul>
         <h3>物權</h3>
         <ul>
-          <li>買價＝市價×10；持有價值／賣價＝市價×5；購買無上限</li>
-          <li><strong>第一回合不可購買物權</strong>，第二回合起開放；物權主宰僅第二回合起可自動就任</li>
-          <li>每回合限賣出 <strong>1</strong> 項物權</li>
-          <li>持有某物權或物權主宰時，他人每回合第一次買／第一次賣該相關貨物需付 200</li>
-          <li>≥4 個物權自動成為物權主宰（全 6 種特權）；&lt;4 自動失去</li>
+          <li>買價＝市價×10；持有價值＝市價×5；第 2 回合起可買；每回合限賣 1 項</li>
+          <li>≥4 物權自動物權主宰；&lt;4 自動解除（不可手動賣掉主宰）</li>
         </ul>
-        <h3>職業（不可重複，賣出後才釋出）</h3>
+        <h3>職業（不可重複選，賣出後才釋出）</h3>
         <ul>
-          <li>職業收成（綠字）：來自職業的收入；結束買貨階段時以「收成−抽成」入現金（可為負則扣現金），兩者歸零</li>
-          <li>職業抽成（紅字）：本階段你應付給各職業的費用；結算時從收成扣除</li>
-          <li>🏦 銀行 3000／賣 2000：收貸款利息；自己借款只還 50%</li>
+          <li>職業收成／抽成於階段結束入帳（波動結束也會結算地主等收入）</li>
+          <li>🏦 銀行 3000／賣 2000：收利息；自己借款只還 50%</li>
           <li>🐳 物權主宰：≥4 物權自動就任</li>
-          <li>🏚️ 地主 3000／賣 2000：出牌加總≠0 收｜加總｜×100；加總=0 收 100</li>
-          <li>🃏 牌王 3000／賣 2000：買牌同價 500；下一回合將本回合買牌所花金額全額回游；別人每出一張牌收 100</li>
+          <li>🏚️ 地主 3000／賣 2000：出牌加總≠0 收｜加總｜×100；=0 收 100</li>
+          <li>🃏 牌王 3000／賣 2000：別人每出一張牌收 100（不含自己）</li>
+          <li>💀 特權者 3000／賣 2000：①每回合場上職業數×100（免費）②花1500解鎖刪職業一次③花1500解鎖收一次預計職業收入</li>
+          <li>💩 黑幫 3000／賣 2000：每回合收人150；買順序強制第1（正牌優先）；每回合可搶1貨；可拒抽成2次；每2回合付2000給資產最少者（賣掉／被刪也結算）</li>
+          <li>😎 政治家 3000／賣 2000：每回合付每人150；花1500複製場上職業（除物權主宰，收入對半分）；全局2次向最高資產索取（1000／1500）</li>
         </ul>
       </div>
       <button class="btn btn-primary" onclick="goStep('start')">返回</button>
@@ -368,9 +385,10 @@
     </div>
 
     <div class="panel" id="stepRoom">
-      <span class="step-tag">步驟 3／3 · 創建房間</span>
+      <span class="step-tag">步驟 3／3 · 創建大廳</span>
       <div class="summary">名號：<strong id="nameSummary">—</strong></div>
-      <label>航行人數</label>
+
+      <label>建立新航線 · 人數</label>
       <div class="player-count" id="playerCount">
         <span data-count="2">2</span>
         <span data-count="3">3</span>
@@ -378,10 +396,21 @@
         <span data-count="5">5</span>
       </div>
       <button class="btn btn-primary" onclick="createRoom()">⚓ 創建房間</button>
-      <p class="or-text">— 或加入已有航線 —</p>
+
+      <p class="or-text">— 或輸入密碼加入 —</p>
       <label for="roomCode">房間密碼</label>
       <input type="text" id="roomCode" placeholder="例如：SAIL-7X2K" maxlength="12" />
       <button class="btn btn-secondary" onclick="joinRoom()">🧭 加入房間</button>
+
+      <hr style="border:none;border-top:1px solid rgba(201,162,39,0.35);margin:16px 0 12px;" />
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;">
+        <label style="margin:0;">公開房間列表</label>
+        <button class="btn btn-ghost" type="button" onclick="refreshRoomList()" style="width:auto;padding:6px 12px;margin:0;font-size:0.8rem;">🔄 整理</button>
+      </div>
+      <div id="roomListBox" class="room-list-box">
+        <div class="room-list-empty">連線中，正在搜尋公開房間…</div>
+      </div>
+
       <button class="btn btn-ghost" onclick="goStep('name')">返回</button>
     </div>
 
@@ -670,6 +699,7 @@
       if (panel) panel.classList.add('active');
       const frame = document.getElementById('frame');
       if (frame) frame.classList.toggle('wide', name === 'rules');
+      if (name === 'room') { try { refreshRoomList(); } catch(e) {} }
       if (name === 'room') {
         const ns = document.getElementById('nameSummary');
         if (ns) ns.textContent = playerName || '—';
@@ -698,6 +728,7 @@
     });
 
     if (window.GameNet) {
+      GameNet.on('rooms_list', (d) => { renderRoomList(d.rooms || []); });
       GameNet.on('open', () => setNetStatus('聯機：已連上 ' + GameNet.url, true));
       GameNet.on('close', () => setNetStatus('聯機：斷線，重試中…', false));
       GameNet.on('error', (d) => setNetStatus('聯機：' + (d.message || '錯誤'), false));
@@ -710,6 +741,39 @@
       setNetStatus('聯機模組未載入（仍可單機／測試）', false);
     }
 
+    function renderRoomList(rooms) {
+      const box = document.getElementById('roomListBox');
+      if (!box) return;
+      const list = Array.isArray(rooms) ? rooms : [];
+      if (!list.length) {
+        box.innerHTML = '<div class="room-list-empty">目前沒有公開房間，建立一個讓同伴加入吧</div>';
+        return;
+      }
+      box.innerHTML = list.map(r => {
+        const full = r.count >= r.maxPlayers;
+        return `<div class="room-list-item" onclick="${full ? '' : `quickJoin('${r.code}')`}">
+          <div>
+            <div class="rl-code">${r.code}</div>
+            <div class="rl-meta">船長 ${r.hostName || '—'} · ${r.count}/${r.maxPlayers} 人${full ? ' · 已滿' : ''}</div>
+          </div>
+          <button type="button" class="rl-join" ${full ? 'disabled style="opacity:0.45;"' : `onclick="event.stopPropagation();quickJoin('${r.code}')"`}>${full ? '已滿' : '加入'}</button>
+        </div>`;
+      }).join('');
+    }
+    function refreshRoomList() {
+      if (window.GameNet) {
+        try { GameNet.listRooms(); } catch (e) {}
+      }
+    }
+    function quickJoin(code) {
+      if (!playerName) {
+        const inp = document.getElementById('playerName');
+        playerName = (inp && inp.value || '').trim() || localStorage.getItem('playerName') || '';
+      }
+      if (!playerName) { alert('請先設定名號'); goStep('name'); return; }
+      document.getElementById('roomCode').value = code;
+      joinRoom();
+    }
     function createRoom() {
       if (!playerName) { alert('請先設定名號'); goStep('name'); return; }
       localStorage.setItem('playerName', playerName);
