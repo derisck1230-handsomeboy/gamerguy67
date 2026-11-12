@@ -531,6 +531,27 @@
     .pause-menu-box button { width: 100%; margin-top: 8px; padding: 12px; border-radius: 12px; font-weight: 700; }
 
     .btn-red { background: #9b2226; color: #fff; }
+    .bankrupt-slide {
+      position: fixed; left: 0; top: 20%; z-index: 160;
+      transform: translateX(-110%);
+      transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+      max-width: min(280px, 78vw);
+      background: linear-gradient(145deg, rgba(40,12,12,0.94), rgba(20,8,8,0.92));
+      border: 1px solid rgba(255,120,100,0.55);
+      border-left: none; border-radius: 0 14px 14px 0;
+      padding: 12px 14px; color: #f3e5c5;
+      box-shadow: 6px 8px 24px rgba(0,0,0,0.35);
+    }
+    .bankrupt-slide.show { transform: translateX(0); }
+    .bankrupt-slide .bs-title { font-size: 0.88rem; font-weight: 800; color: #ff8a80; margin-bottom: 4px; }
+    .bankrupt-slide .bs-msg { font-size: 0.78rem; line-height: 1.35; color: #e8d5b5; margin-bottom: 10px; }
+    .bankrupt-slide button {
+      width: 100%; margin-top: 6px; padding: 10px; border-radius: 10px;
+      font-size: 0.85rem; font-weight: 700; border: none; cursor: pointer;
+    }
+    .bankrupt-slide .bs-watch { background: #1a3a4a; color: #f3e5c5; border: 1px solid #c9a227 !important; }
+    .bankrupt-slide .bs-end { background: #9b2226; color: #fff; }
+
     .job-pick-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -910,6 +931,12 @@
   </div>
 
   <div class="action-bar" id="actionBar"></div>
+  <div class="bankrupt-slide" id="bankruptSlide">
+    <div class="bs-title" id="bsTitle">玩家已破產</div>
+    <div class="bs-msg" id="bsMsg">此玩家已完全破產（負債），請選擇：</div>
+    <button type="button" class="bs-watch" onclick="chooseSpectate()">👁 觀戰</button>
+    <button type="button" class="bs-end" onclick="requestEndGame()">結束總遊戲</button>
+  </div>
   <div class="pause-menu-mask" id="pauseMenuMask" onclick="if(event.target===this)closePauseMenu()">
     <div class="pause-menu-box">
       <h3>⏸ 選單</h3>
@@ -1559,7 +1586,7 @@
     }
 
     const room = JSON.parse(localStorage.getItem('currentRoom') || '{}');
-    const myId = parseInt(localStorage.getItem('myPlayerId') || '1');
+    let myId = parseInt(localStorage.getItem('myPlayerId') || '1');
     const TITLE_DEFS = {
       victory_phantom: { id:'victory_phantom', name:'勝利幻影者', banner: 'assets/titles/victory_phantom.png', style:'gold', hint:'單局淨資產≥8000但未奪冠' },
       finance_reaper: { id:'finance_reaper', name:'金融死神', banner: 'assets/titles/finance_reaper.png', style:'purple', hint:'職業能力使他人破產或欠債' },
@@ -1710,17 +1737,26 @@
     let jobFeesPaid = 0;
     let rightsSoldThisRound = 0; // 每回合限賣 1 項物權
 
-    if (!room.players) {
-      room.players = [
-        { id: 1, name: '玩家一', cash: 1000, debt: 0, holdings: {}, cards: [], privateCards: [] },
-        { id: 2, name: '玩家二', cash: 1000, debt: 0, holdings: {}, cards: [], privateCards: [] }
-      ];
+    const _offlineTest = localStorage.getItem('onlineMode') !== '1';
+    if (!room.players || (!localStorage.getItem('onlineMode') && room.players.length !== 1)) {
+      if (_offlineTest) {
+        const nm = localStorage.getItem('playerName') || '測試船長';
+        room.players = [
+          { id: 1, name: nm, cash: 99999, debt: 0, holdings: {}, cards: [], privateCards: [], isHost: true }
+        ];
+        myId = 1;
+        try { localStorage.setItem('myPlayerId', '1'); } catch(e) {}
+      } else if (!room.players) {
+        room.players = [
+          { id: 1, name: '玩家一', cash: 1000, debt: 0, holdings: {}, cards: [], privateCards: [] }
+        ];
+      }
     }
     room.players.forEach(p => {
       if (!p.holdings) p.holdings = {};
       if (!p.cards) p.cards = [];
       if (!p.privateCards) p.privateCards = [];
-      if (p.cash === undefined) p.cash = 1000;
+      if (p.cash === undefined) p.cash = _offlineTest ? 99999 : 1000;
       if (p.debt === undefined) p.debt = 0;
       if (p.paidRightsBuyThisRound === undefined) p.paidRightsBuyThisRound = false;
       if (p.paidRightsSellThisRound === undefined) p.paidRightsSellThisRound = false;
@@ -1821,6 +1857,57 @@
       toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
     }
 
+    let spectating = false;
+    function isFullyBankrupt(pl) {
+      if (!pl) return false;
+      if (pl.bankrupt) return true;
+      // 完全破產：有債務且現金≤0、持倉也沒有
+      const hold = holdValue(pl);
+      return (pl.debt || 0) > 0 && (pl.cash || 0) <= 0 && hold <= 0;
+    }
+    function markBankruptIfNeeded(pl) {
+      if (!pl) return;
+      if (isFullyBankrupt(pl)) pl.bankrupt = true;
+    }
+    function updateBankruptUI() {
+      const slide = document.getElementById('bankruptSlide');
+      if (!slide) return;
+      // 僅買貨階段提示；波動／喊價／開場不擋
+      if (phase !== 'buy') { slide.classList.remove('show'); return; }
+      const meP = me();
+      // 自己破產
+      if (meP && isFullyBankrupt(meP) && !spectating) {
+        document.getElementById('bsTitle').textContent = '你已完全破產';
+        document.getElementById('bsMsg').textContent = '負債且無現金／持倉。可觀戰或結束總遊戲。';
+        slide.classList.add('show');
+        return;
+      }
+      // 他人破產通知（簡短）
+      const others = (room.players || []).filter(pl => !sameId(pl.id, myId) && isFullyBankrupt(pl));
+      if (others.length) {
+        document.getElementById('bsTitle').textContent = '玩家已破產';
+        document.getElementById('bsMsg').textContent = others.map(pl => pl.name).join('、') + ' 已完全破產（負債）。';
+        slide.classList.add('show');
+        return;
+      }
+      slide.classList.remove('show');
+    }
+    function chooseSpectate() {
+      spectating = true;
+      const meP = me();
+      if (meP) meP.bankrupt = true;
+      const slide = document.getElementById('bankruptSlide');
+      if (slide) slide.classList.remove('show');
+      showToast('已進入觀戰模式', 'success');
+      // 自動結束自己的回合（若輪到自己）
+      if (isMyTurn() && phase === 'buy') {
+        phaseDoneIds[myId] = true;
+        if (typeof syncPush === 'function') syncPush();
+        // 推進
+        try { endPhase(); } catch (e) {}
+      }
+      render();
+    }
     function openPauseMenu() {
       const m = document.getElementById('pauseMenuMask');
       if (m) m.classList.add('show');
@@ -1889,6 +1976,7 @@
       document.getElementById('debtDisplay').textContent = p.debt;
       document.getElementById('bankDisplay').textContent = bankFunds;
       document.getElementById('roundNum').textContent = round;
+      try { (room.players||[]).forEach(markBankruptIfNeeded); updateBankruptUI(); } catch(e) {}
       try { updateOrderStrip(); } catch(e) {}
       // 買貨階段換人時重設計時
       if (phase === 'buy' && setupDone && currentTurnId !== timerForPlayerId) { try { startBuyPhaseTimer(); } catch(e) {} }
@@ -3444,16 +3532,23 @@
         ensureJobs(pl).forEach(jid => { if (jid !== 'rights_master') takenOnField[jid] = pl; });
       });
       const body = document.getElementById('politicianBody');
+      const bigBtn = 'width:100%;margin-top:10px;padding:14px 12px;font-size:1rem;font-weight:800;border-radius:12px;min-height:48px;';
       body.innerHTML = `
-        <p>已複製：${(p.politicianCopies||[]).map(id=>{const j=JOBS.find(x=>x.id===id);return j?j.title:id;}).join('、')||'無'}</p>
-        <p>向最高資產者索取剩餘：${p.politicianDemandLeft} 次（第1次1000／第2次1500）</p>
-        <div style="margin:8px 0;font-weight:700;">複製場上職業（1500）</div>
-        ${Object.keys(takenOnField).map(jid => {
-          const j = JOBS.find(x=>x.id===jid);
-          const already = (p.politicianCopies||[]).includes(jid);
-          return `<button class="btn-gold" style="width:100%;margin-top:4px;" ${already?'disabled':''} onclick="politicianCopy('${jid}')">${j?j.icon+' '+j.title:jid}${already?'（已複製）':''}</button>`;
-        }).join('') || '<div>場上無可複製職業</div>'}
-        <button class="btn-red" style="width:100%;margin-top:12px;" onclick="politicianDemand()">向當下資產最高者索取（第1次1000／第2次1500）</button>`;
+        <div style="padding:12px;border:2px solid #c9a227;border-radius:14px;background:rgba(255,255,255,0.4);margin-bottom:10px;">
+          <div style="font-weight:800;">已複製能力</div>
+          <div style="margin-top:4px;font-size:0.9rem;">${(p.politicianCopies||[]).map(id=>{const j=JOBS.find(x=>x.id===id);return j?(j.icon+' '+j.title):id;}).join('、')||'尚無'}</div>
+          <div style="margin-top:8px;font-size:0.85rem;">索取剩餘 <strong>${p.politicianDemandLeft}</strong> 次（第1次1000／第2次1500）</div>
+        </div>
+        <div style="padding:12px;border:2px solid #c9a227;border-radius:14px;background:rgba(255,255,255,0.4);">
+          <div style="font-weight:800;font-size:1.05rem;">複製場上職業 · 1500</div>
+          <div style="font-size:0.8rem;color:#5a3a22;margin:4px 0 6px;">僅可複製他人已選職業（物權主宰除外）</div>
+          ${Object.keys(takenOnField).map(jid => {
+            const j = JOBS.find(x=>x.id===jid);
+            const already = (p.politicianCopies||[]).includes(jid);
+            return `<button class="btn-gold" style="${bigBtn}${already?'opacity:0.45;':''}" ${already?'disabled':''} onclick="politicianCopy('${jid}')">${j?j.icon+' '+j.title:jid}${already?'（已複製）':''}</button>`;
+          }).join('') || '<div style="margin-top:8px;">場上無可複製職業</div>'}
+        </div>
+        <button class="btn-red" style="${bigBtn}" onclick="politicianDemand()">向資產最高者索取（1000／1500）</button>`;
       document.getElementById('politicianModal').classList.add('show');
     }
     function politicianCopy(jid) {
@@ -3675,6 +3770,7 @@
     }
     function isMyTurn() {
       if (!setupDone) return false;
+      if (spectating) return false;
       if (currentTurnId == null || currentTurnId === '') return true;
       return sameId(currentTurnId, myId);
     }
@@ -3917,16 +4013,21 @@
       clearBidTimer();
       bidState.timer = 10;
       bidState.locked = false;
+      bidState.closing = false;
       const el = document.getElementById('bidTimer');
       if (el) el.textContent = '10';
       bidState.timerId = setInterval(() => {
         bidState.timer -= 1;
+        // 剩 1 秒起鎖定，不可再按（防最後一秒 bug）
+        if (bidState.timer <= 1) bidState.locked = true;
         if (el) el.textContent = String(Math.max(0, bidState.timer));
         if (bidState.timer <= 0) {
           clearBidTimer();
-          bidState.locked = true; // 0 秒起鎖定，禁止再喊
+          bidState.locked = true;
           if (el) el.textContent = '0';
-          // 再延長 1 秒後才結算，避免最後一瞬間兩端不同步
+          if (bidState.closing) return;
+          bidState.closing = true;
+          // 到 0 後再等 1 秒結算
           setTimeout(() => {
             if (!bidState.active) return;
             const meP = me();
@@ -3934,7 +4035,6 @@
             if (isHost || !isOnlineMode()) {
               finishBidding(true);
             }
-            // 非房主等 bid_result
           }, 1000);
         }
       }, 1000);
@@ -4057,7 +4157,7 @@
     }
     function submitBid() {
       if (!bidState.active || phase !== 'bid') return;
-      if (bidState.locked) { showToast('倒數已結束，無法再出價', 'error'); return; }
+      if (bidState.locked || bidState.timer <= 1) { showToast('倒數將結束，無法再出價', 'error'); return; }
       if (bidState.passed[myId]) { showToast('你已選擇不喊了', 'error'); return; }
       const n = bidState.counts[myId] || 0;
       if (n >= 3) { showToast('最多只能喊 3 次', 'error'); return; }
@@ -4090,16 +4190,14 @@
     }
     function passBid() {
       if (!bidState.active) return;
-      if (bidState.locked) return;
+      if (bidState.locked || bidState.timer <= 1) { showToast('倒數將結束，無法操作', 'error'); return; }
       bidState.passed[myId] = true;
       renderBidList();
-      showToast('你選擇本買回合不再喊價', 'success');
+      showToast('你選擇本買回合不再喊價（計時不重置）', 'success');
+      // 「不喊了」不重計時間
       if (isOnlineMode() && window.GameNet) {
-        GameNet.sendEvent('bid_update', { bids: bidState.bids, counts: bidState.counts, passed: bidState.passed });
+        GameNet.sendEvent('bid_update', { bids: bidState.bids, counts: bidState.counts, passed: bidState.passed, passOnly: true });
       }
-      // 若全員都不喊了，提早結束
-      const allPassed = (room.players || []).every(pl => bidState.passed[pl.id] || (bidState.counts[pl.id] || 0) > 0);
-      // 不強制；等倒數
       if (typeof syncPush === 'function') syncPush();
     }
     function finishBidding(fromHost) {
@@ -4248,8 +4346,18 @@
       readyPlayers = {};
       const online = isOnlineMode();
       if (!online) {
-        (room.players || []).forEach(p => { readyPlayers[p.id] = true; });
-        showCinema('本機測試', '即將開始…');
+        // 單機測試：僅自己，資金 99999（測職業／找 bug）
+        const nm = localStorage.getItem('playerName') || '測試船長';
+        room.players = [{ id: 1, name: nm, cash: 99999, debt: 0, holdings: {}, cards: [], privateCards: [], isHost: true }];
+        myId = 1;
+        room.players.forEach(pl => {
+          if (!pl.holdings) pl.holdings = {};
+          if (!pl.cards) pl.cards = [];
+          if (!pl.privateCards) pl.privateCards = [];
+        });
+        dealInitialCards();
+        readyPlayers[1] = true;
+        showCinema('單機測試模式', '資金 99999 · 僅自己 · 測職業用');
         setTimeout(() => runPreRouletteCountdown(), 800);
         return;
       }
@@ -4437,8 +4545,10 @@
           if (payload.counts) bidState.counts = payload.counts;
           if (payload.passed) bidState.passed = payload.passed;
           renderBidList();
-          // 已鎖定結算中不再重開倒數
-          if (!bidState.locked && bidState.active) startBidTimer();
+          // 「不喊了」不重計；僅真正出價才重置倒數
+          if (!payload.passOnly && !bidState.locked && bidState.active && bidState.timer > 1) {
+            startBidTimer();
+          }
         }
         if (ev === 'order_announce') {
           showCinema('抽取隨機玩家順序', '即將轉動輪盤決定第一位…');
