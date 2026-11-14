@@ -359,7 +359,9 @@
         <h3>物權</h3>
         <ul>
           <li>買價＝市價×10；持有價值＝市價×5；第 2 回合起可買；每回合限賣 1 項</li>
-          <li>≥4 物權自動物權主宰；&lt;4 自動解除（不可手動賣掉主宰）</li>
+          <li>超過 5 個物權（含 TANGA）自動物權主宰；少於 4 自動解除</li>
+          <li>特殊貨物 TANGA：每買貨回合隨機跳價，物權買價＝現價×20；賣出抽 40% 給物權持有者</li>
+          <li>💀 特權者就任後限時 2 回合，到期移除不退款</li>
         </ul>
         <h3>職業（不可重複選，賣出後才釋出）</h3>
         <ul>
@@ -667,6 +669,21 @@
           : '成功！已獲得稱號「期貨新手」。請到「稱號」頁查看並選擇是否裝備。';
         msg.style.color = '#1b6b3a';
         try { renderTitles(); } catch (_) {}
+        return;
+      }
+      if (code === '騏哥大帥哥') {
+        const m = loadMeta();
+        if (m.codeQigeClaimed) {
+          msg.textContent = '此代碼已兌換過';
+          msg.style.color = '#9b2226';
+          return;
+        }
+        m.codeQigeClaimed = true;
+        m.tokens = (m.tokens || 0) + 67;
+        saveMeta(m);
+        refreshTokenHud();
+        msg.textContent = '成功！獲得期貨代幣 +67';
+        msg.style.color = '#1b6b3a';
         return;
       }
       const table = {

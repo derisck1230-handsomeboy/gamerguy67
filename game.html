@@ -76,21 +76,28 @@
     }
 
     .toast {
-      display: none;
-      position: fixed;
-      top: 16px; left: 50%; transform: translateX(-50%);
-      background: rgba(13,33,55,0.96);
-      border: 2px solid var(--gold);
-      color: var(--parchment);
-      padding: 12px 20px;
-      border-radius: 8px;
-      z-index: 300;
-      max-width: 90%;
+      position: fixed; top: 12px; left: 50%; z-index: 9999;
+      transform: translate(-50%, -150%);
+      transition: transform 0.45s cubic-bezier(0.22,1,0.36,1), opacity 0.35s;
+      opacity: 0;
+      display: block;
+      pointer-events: none;
+      max-width: min(92vw, 420px);
+      padding: 12px 18px;
+      border-radius: 12px;
+      background: rgba(20,40,30,0.92);
+      border: 1px solid #7dcea0;
+      color: #e8f5e9;
+      font-size: 0.9rem;
       text-align: center;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
-      font-size: 0.95rem;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.35);
     }
-    .toast.show { display: block; }
+    .toast.show {
+      transform: translate(-50%, 0);
+      opacity: 1;
+    }
+    .toast.success { border-color: #7dcea0; background: rgba(20,45,30,0.94); }
+    .toast.error { border-color: #f1948a; background: rgba(50,20,20,0.94); color: #fce4e4; }
     .toast.error { border-color: #e74c3c; }
     .toast.success { border-color: #2d6a4f; }
 
@@ -1069,6 +1076,16 @@
   </div>
 
   <!-- 遊戲內選擇職業 -->
+  <div class="modal-mask" id="sellJobModal">
+    <div class="modal" style="max-width:min(420px,96vw);">
+      <h3>賣掉職業</h3>
+      <p style="font-size:0.85rem;color:#5a3a22;">選擇要賣掉的職業（物權主宰不可賣）</p>
+      <div id="sellJobModalList" style="display:flex;flex-direction:column;gap:10px;margin:12px 0;"></div>
+      <div class="modal-actions">
+        <button class="btn-navy" onclick="document.getElementById('sellJobModal').classList.remove('show')">關閉</button>
+      </div>
+    </div>
+  </div>
   <div class="modal-mask" id="jobModal">
     <div class="modal" style="max-width:min(520px,96vw);width:100%;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;">
       <h3 style="margin:0 0 6px;">選擇職業</h3>
@@ -1245,8 +1262,23 @@
       { id: 'tea', name: '痘痘貼', icon: '🩹', price: 150, stock: 12 },
       { id: 'coffee', name: '紅姐口罩', icon: '😷', price: 150, stock: 12 },
       { id: 'wheat', name: '黑人服務', icon: '🛎️', price: 150, stock: 12 },
-      { id: 'corn', name: '五老星徽章', icon: '⭐', price: 150, stock: 12 }
+      { id: 'corn', name: '五老星徽章', icon: '⭐', price: 150, stock: 12 },
+      { id: 'tanga', name: 'TANGA', icon: '🥇', price: 500, stock: 5, special: true }
     ];
+    const NORMAL_GOODS = () => GOODS.filter(g => !g.special);
+    // TANGA 專用 20 格：10～3000，全黃，起始 500
+    const TANGA_GRID = [10,20,40,60,80,100,150,200,300,400,500,650,800,1000,1300,1600,2000,2300,2600,3000];
+    function tangaPriceToIndex(price) {
+      let best = 0, bd = Infinity;
+      TANGA_GRID.forEach((pv, i) => { const d = Math.abs(pv - price); if (d < bd) { bd = d; best = i; } });
+      return best;
+    }
+    function randomizeTangaPrice() {
+      const g = GOODS.find(x => x.id === 'tanga');
+      if (!g) return;
+      const idx = Math.floor(Math.random() * TANGA_GRID.length);
+      g.price = TANGA_GRID[idx];
+    }
     // 原始設計：±8±6±4±2，每貨每點 2 張 → 6×8×2 = 96
     const CARD_VALUES = [8, 6, 4, 2, -2, -4, -6, -8];
     // 職業：銀行（需支付 3000 成為）
@@ -1263,9 +1295,9 @@
         id: 'rights_master',
         icon: '🐳',
         title: '物權主宰',
-        desc: '持有 4 個以上物權自動就任，享有全部六種物權特權；物權少於 4 自動失去',
+        desc: '持有超過 5 個物權（含 TANGA）自動就任；物權少於 4 自動失去',
         cost: 0,
-        needRights: 4,
+        needRights: 6,
         sellPrice: 0
       },
       {
@@ -1288,7 +1320,7 @@
         id: 'privileged',
         icon: '💀',
         title: '特權者',
-        desc: '3000 就任／賣 2000。專屬特權頁：①每回合收「場上職業數×100」（免費）②花1500解鎖刪職業一次③花1500解鎖收一次職業者當回合預計收入',
+        desc: '3000 就任／賣 2000。限時 2 回合後自動移除（不退款）。①職業數×100 ②1500解鎖刪職業 ③1500解鎖收一次預計收入',
         cost: 3000,
         sellPrice: 2000
       },
@@ -1355,6 +1387,7 @@
       if (!Array.isArray(pl.politicianCopies)) pl.politicianCopies = [];
       if (pl.politicianDemandLeft == null) pl.politicianDemandLeft = 2;
       if (pl.jobPassiveRound == null) pl.jobPassiveRound = 0;
+      if (pl.privilegedBoughtRound === undefined) pl.privilegedBoughtRound = null;
     }
     function effectiveHasJob(player, jobId) {
       if (hasJob(player, jobId)) return true;
@@ -1366,9 +1399,22 @@
       (room.players || []).forEach(pl => { n += ensureJobs(pl).length; });
       return n;
     }
+    function checkPrivilegedExpiry(p) {
+      if (!p || !hasJob(p, 'privileged')) return;
+      initJobExtraState(p);
+      if (p.privilegedBoughtRound == null) p.privilegedBoughtRound = round;
+      // 持有滿 2 回合後移除（不退款）
+      if (round >= (p.privilegedBoughtRound + 2)) {
+        p.jobs = ensureJobs(p).filter(id => id !== 'privileged');
+        ensureJobs(p);
+        p.privilegedBoughtRound = null;
+        showToast('特權者時限到，職業已移除（不退款）', 'error');
+      }
+    }
     function applyPassiveJobIncomes(p) {
       if (!p || !sameId(p.id, myId)) return;
       initJobExtraState(p);
+      checkPrivilegedExpiry(p);
       if (p.jobPassiveRound === round) return;
       p.jobPassiveRound = round;
       // 特權者①
@@ -1469,7 +1515,7 @@
     const goodsRights = {};
     GOODS.forEach(g => { goodsRights[g.id] = null; });
     function countRights(playerId) {
-      return Object.values(goodsRights).filter(id => id === playerId).length;
+      return Object.values(goodsRights).filter(id => id != null && sameId(id, playerId)).length;
     }
     function countGoodsTypes(player) {
       return GOODS.filter(g => (player.holdings[g.id] || 0) > 0).length;
@@ -1484,16 +1530,23 @@
     function rightsAssetValue(playerId) {
       let v = 0;
       GOODS.forEach(g => {
-        if (goodsRights[g.id] === playerId) v += g.price * 5;
+        if (goodsRights[g.id] != null && sameId(goodsRights[g.id], playerId)) v += rightUnitValue(g);
       });
       return v;
     }
-    // 物權主宰價值：場上全部六種貨物現價×5 之和
     function rightsMasterJobValue() {
-      return GOODS.reduce((s, g) => s + g.price * 5, 0);
+      return GOODS.reduce((s, g) => s + rightUnitValue(g), 0);
     }
-    function rightUnitValue(g) { return g.price * 5; }
-    function rightBuyCost(g) { return g.price * 10; } // 購買仍為市價×10
+    function rightUnitValue(g) {
+      if (!g) return 0;
+      if (g.id === 'tanga' || g.special) return g.price * 10; // 特殊物權持有價值
+      return Math.round(g.price / 2) * 10; // 一般：現價÷2×10
+    }
+    function rightBuyCost(g) {
+      if (!g) return 0;
+      if (g.id === 'tanga' || g.special) return g.price * 20; // 特殊物權買價×20
+      return Math.round(g.price / 2) * 10; // 一般：現價÷2×10
+    }
     // 職業價值顯示
     function jobValueOf(player) {
       const ids = ensureJobs(player);
@@ -1573,7 +1626,7 @@
     }
     function initDeck() {
       // 6 貨物 × 8 點數 × 2 = 96
-      GOODS.forEach(g => {
+      NORMAL_GOODS().forEach(g => {
         CARD_VALUES.forEach(v => { deckStock[deckKey(g.id, v)] = 2; });
       });
     }
@@ -1773,7 +1826,7 @@
     // 從牌庫抽一張（有庫存才抽，並扣除牌庫數量）
     function drawRandomFromDeck() {
       const pool = [];
-      GOODS.forEach(g => {
+      NORMAL_GOODS().forEach(g => {
         CARD_VALUES.forEach(v => {
           const left = deckRemain(g.id, v);
           for (let k = 0; k < left; k++) {
@@ -1854,7 +1907,7 @@
       el.textContent = msg;
       el.className = 'toast show' + (type ? ' ' + type : '');
       clearTimeout(toastTimer);
-      toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
+      toastTimer = setTimeout(() => el.classList.remove('show'), 5000);
     }
 
     let spectating = false;
@@ -2142,7 +2195,7 @@
         html += `<div class="board-head ${hc}${edge}">${pv}</div>`;
       }
 
-      GOODS.forEach(g => {
+      NORMAL_GOODS().forEach(g => {
         html += `<div class="board-label">${g.icon} ${g.name}</div>`;
         const pos = priceToGrid(g.price);
         g.price = gridToPrice(pos);
@@ -2154,16 +2207,31 @@
           else cls += ' dim-' + z;
           if (i === pos) cls += ' current';
           if (zoneStarts.has(i)) cls += ' zone-edge-left';
-
           let label = '';
           if (i === pos) label = g.price;
           else if (i === 0 || i === pos - 1 || zoneStarts.has(i) || i === GRID_MAX) label = cellPrice;
           else if (i <= pos && i % 5 === 0) label = cellPrice;
-
           html += `<div class="${cls}" title="${g.name} · ${cellPrice}">${label}</div>`;
         }
       });
       document.getElementById('chessBoard').innerHTML = html;
+      // TANGA 專用軌道（分開顯示）
+      const tg = GOODS.find(x => x.id === 'tanga');
+      const tangaEl = document.getElementById('tangaBoard');
+      if (tg && tangaEl) {
+        const pos = tangaPriceToIndex(tg.price);
+        tg.price = TANGA_GRID[pos];
+        let th = '<div class="board-label" style="color:#e8c547;">🥇 TANGA</div>';
+        TANGA_GRID.forEach((pv, i) => {
+          let cls = 'cell';
+          if (i <= pos) cls += ' filled-yellow';
+          else cls += ' dim-yellow';
+          if (i === pos) cls += ' current';
+          th += `<div class="${cls}" title="TANGA · ${pv}">${i === pos || i === 0 || i === TANGA_GRID.length-1 ? pv : (i % 3 === 0 ? pv : '')}</div>`;
+        });
+        tangaEl.innerHTML = th;
+        tangaEl.style.display = '';
+      } else if (tangaEl) tangaEl.style.display = 'none';
     }
 
     // 波動階段：自己組、隔壁組各只能亮 1 張；點另一張會取消前一張
@@ -2420,8 +2488,9 @@
     }
 
     function rightsFeeDue(player, kind, goodId) {
+      if (goodId === 'tanga') return 0; // TANGA 用賣出 40% 規則，不走一般 200
       const beneficiary = rightsBeneficiary(goodId);
-      if (!beneficiary || beneficiary.id === player.id) return 0;
+      if (!beneficiary || sameId(beneficiary.id, player.id)) return 0;
       if (kind === 'buy' && player.paidRightsBuyThisRound) return 0;
       if (kind === 'sell' && player.paidRightsSellThisRound) return 0;
       return 200;
@@ -2481,19 +2550,35 @@
       const p = me();
       const hold = p.holdings[g.id] || 0;
       if (qty < 1 || qty > hold) { showToast('數量不正確', 'error'); return; }
-      const fee = rightsFeeDue(p, 'sell', g.id);
-      const income = qty * g.price;
-      if (p.cash + income < fee) {
-        showToast(`需支付物權費 ${fee} 元，資金不足`, 'error');
-        return;
+      let income = qty * g.price;
+      let note = '';
+      // TANGA 特殊：賣出抽 40% 給物權持有者
+      if (g.id === 'tanga' || g.special) {
+        const ben = rightsBeneficiary(g.id);
+        if (ben && !sameId(ben.id, p.id)) {
+          const cut = Math.floor(income * 0.4);
+          income -= cut;
+          if (sameId(ben.id, myId)) pendingJobIncome += cut;
+          else ben.cash += cut;
+          if (sameId(p.id, myId)) jobFeesPaid += cut;
+          else p.cash -= cut; // will add income below
+          note = `（TANGA 物權抽成 40%：${cut}）`;
+        }
+      } else {
+        const fee = rightsFeeDue(p, 'sell', g.id);
+        if (p.cash + income < fee) {
+          showToast(`需支付物權費 ${fee} 元，資金不足`, 'error');
+          return;
+        }
+        const paidFee = applyRightsFee(p, 'sell', g.id);
+        if (paidFee > 0) note = `（物權費 ${paidFee}）`;
       }
       p.cash += income;
-      const paidFee = applyRightsFee(p, 'sell', g.id);
       p.holdings[g.id] -= qty;
       g.stock += qty;
       closeModals();
       render();
-      showToast(paidFee > 0 ? `已賣出 ${g.name} × ${qty}（另付物權費 ${paidFee}）` : `已賣出 ${g.name} × ${qty}`, 'success');
+      showToast(`已賣出 ${g.name} × ${qty}${note}`, 'success');
       checkWin();
       syncPush();
     }
@@ -2561,7 +2646,7 @@
       }
       const cnt = countRights(p.id);
       list.innerHTML = buyHtml +
-        `<p style="margin-top:12px;font-size:0.9rem;">持有物權：<strong>${cnt}</strong>／6${hasJob(p,'rights_master')?'　🐳 物權主宰中':''}</p>
+        `<p style="margin-top:12px;font-size:0.9rem;">持有物權：<strong>${cnt}</strong>／7（>5 成主宰）${hasJob(p,'rights_master')?'　🐳 物權主宰中':''}</p>
          <p style="font-size:0.8rem;color:#5a3a22;">持有 ≥4 個物權自動成為物權主宰</p>`;
       document.getElementById('rightsModal').classList.add('show');
     }
@@ -2624,22 +2709,21 @@
 
     function checkAutoRightsMaster(player) {
       const cnt = countRights(player.id);
-      if (cnt >= 4 && !hasJob(player, 'rights_master')) {
+      if (cnt > 5 && !hasJob(player, 'rights_master')) {
         if (round < 2) {
           showToast('物權主宰僅能在第二回合起自動就任', 'error');
           return;
         }
         const other = room.players.find(pl => hasJob(pl, 'rights_master') && pl.id !== player.id);
         if (other) {
-          showToast('你已持有 4 個以上物權，但場上已有物權主宰', 'error');
+          showToast('你已持有超過 5 個物權，但場上已有物權主宰', 'error');
           return;
         }
-        // 成為主宰：取得全部 6 種物權（可與其他職業並存）
         GOODS.forEach(g => { goodsRights[g.id] = player.id; });
         ensureJobs(player);
         if (!player.jobs.includes('rights_master')) player.jobs.push('rights_master');
         ensureJobs(player);
-        showBigAlert('🐳 物權主宰誕生', `「${player.name}」持有 ${cnt} 個以上物權，自動成為物權主宰！\n已獲得全部六種貨物的物權特權`);
+        showBigAlert('🐳 物權主宰誕生', `「${player.name}」持有 ${cnt} 個物權（超過5），自動成為物權主宰！`);
       }
     }
 
@@ -3278,7 +3362,10 @@
           (room.players || []).forEach(pl => {
             pl.borrowedThisRound = 0;
             pl.bankBorrowedThisRound = false;
+            checkPrivilegedExpiry(pl);
           });
+          randomizeTangaPrice();
+          showToast('TANGA 本回合跳價：' + (GOODS.find(g=>g.id==='tanga')||{}).price, 'success');
           resetRightsFees();
           showToast(`波動結束 → 第 ${round} 回合：先買順序（喊價）`, 'success');
           if (isOnlineMode() && window.GameNet) {
@@ -3365,8 +3452,24 @@
       `;
 
       const rights = GOODS.filter(g => goodsRights[g.id] === pl.id);
+      html += `<div style="margin:12px 0 6px;font-weight:800;font-size:1rem;color:#3d2414;border-bottom:2px solid rgba(201,162,39,0.5);padding-bottom:6px;">📦 持有貨物</div>`;
+      const holds = GOODS.filter(g => (pl.holdings[g.id]||0) > 0);
+      if (holds.length) {
+        html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-bottom:10px;">';
+        holds.forEach(g => {
+          html += `<div style="padding:10px;border-radius:10px;background:rgba(12,40,60,0.08);border:1px solid rgba(201,162,39,0.4);text-align:center;">
+            <div style="font-size:1.4rem;">${g.icon}</div>
+            <div style="font-weight:700;font-size:0.85rem;">${g.name}</div>
+            <div style="color:#9b2226;font-weight:800;">×${pl.holdings[g.id]}</div>
+            <div style="font-size:0.75rem;color:#5a3a22;">單價 ${g.price}</div>
+          </div>`;
+        });
+        html += '</div>';
+      } else {
+        html += '<div style="color:#8a6e4a;font-size:0.85rem;margin-bottom:10px;">尚無持倉</div>';
+      }
       const rv = hasJob(pl, 'rights_master') ? rightsMasterJobValue() : rightsAssetValue(pl.id);
-      html += `<div style="margin:10px 0 6px;font-weight:700;color:#3d2414;border-bottom:1px solid rgba(201,162,39,0.35);padding-bottom:4px;">📦 物權庫${rights.length || hasJob(pl, 'rights_master') ? '（價值 ' + rv + '）' : ''}</div>`;
+      html += `<div style="margin:12px 0 6px;font-weight:800;font-size:1rem;color:#3d2414;border-bottom:2px solid rgba(100,180,255,0.55);padding-bottom:6px;">📜 物權${rights.length || hasJob(pl, 'rights_master') ? '（價值 ' + rv + '）' : ''}</div>`;
       if (rights.length) {
         rights.forEach(g => {
           html += `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:0.9rem;border-bottom:1px solid rgba(0,0,0,0.05);">
@@ -3598,24 +3701,15 @@
         ? `${owned}（合計價值 ${jobValueOf(p)}）`
         : '尚未選擇（可同時擁有多個職業）';
 
-      let sellHtml = '';
       const sellable = ensureJobs(p).filter(jid => {
         const curJob = JOBS.find(j => j.id === jid);
-        // 物權主宰不可手動賣掉，僅物權 <4 自動解除
         return curJob && curJob.sellPrice > 0 && curJob.id !== 'rights_master';
       });
+      let sellHtml = '';
       if (sellable.length) {
-        sellHtml = `<div style="grid-column:1/-1;margin-bottom:10px;border:1px dashed #9b2226;border-radius:12px;padding:10px;background:rgba(155,34,38,0.08);">
-          <button type="button" class="btn-navy" style="width:100%;margin-bottom:8px;" onclick="var b=document.getElementById('sellJobBox');b.style.display=b.style.display==='none'?'block':'none';">⚠️ 管理／賣掉職業（點此展開，勿誤觸）</button>
-          <div id="sellJobBox" style="display:none;">`;
-        sellable.forEach(jid => {
-          const curJob = JOBS.find(j => j.id === jid);
-          if (!curJob) return;
-          if (curJob.sellPrice > 0) {
-            sellHtml += `<button class="btn-red" style="width:100%;padding:12px;margin-bottom:6px;font-size:0.95rem;" onclick="askSellJob('${curJob.id}','${curJob.title}')">賣掉「${curJob.title}」　回收 ${curJob.sellPrice}</button>`;
-          }
-        });
-        sellHtml += `</div></div>`;
+        sellHtml = `<div style="grid-column:1/-1;margin-bottom:10px;">
+          <button type="button" class="btn-red" style="width:100%;padding:16px 12px;font-size:1.05rem;font-weight:800;border-radius:14px;min-height:52px;" onclick="openSellJobModal()">💰 賣掉職業</button>
+        </div>`;
       }
 
       document.getElementById('jobPickGrid').innerHTML = sellHtml + JOBS.map(j => {
@@ -3693,12 +3787,31 @@
       ensureJobs(p);
       initJobExtraState(p);
       if (job.id === 'gangster') p.gangsterBoughtRound = round;
+      if (job.id === 'privileged') p.privilegedBoughtRound = round;
       closeModals();
       render();
       if (typeof syncPush === 'function') syncPush();
       showToast(`已就任「${job.title}」（可再選其他職業）`, 'success');
     }
 
+    function openSellJobModal() {
+      const p = me();
+      const list = document.getElementById('sellJobModalList');
+      if (!list) return;
+      const sellable = ensureJobs(p).filter(jid => {
+        const curJob = JOBS.find(j => j.id === jid);
+        return curJob && curJob.sellPrice > 0 && curJob.id !== 'rights_master';
+      });
+      if (!sellable.length) {
+        list.innerHTML = '<div style="text-align:center;color:#5a3a22;">目前沒有可賣職業</div>';
+      } else {
+        list.innerHTML = sellable.map(jid => {
+          const j = JOBS.find(x => x.id === jid);
+          return `<button type="button" class="btn-red" style="width:100%;padding:16px;font-size:1.05rem;font-weight:800;border-radius:14px;min-height:52px;" onclick="askSellJob('${j.id}','${j.title}')">${j.icon} 賣掉「${j.title}」　回收 ${j.sellPrice}</button>`;
+        }).join('');
+      }
+      document.getElementById('sellJobModal').classList.add('show');
+    }
     async function askSellJob(jobId, title) {
       const ok = await gameConfirm('賣掉職業', '確定賣掉「' + title + '」？');
       if (ok) sellJob(jobId);
@@ -4231,6 +4344,7 @@
       currentTurnId = Number(turnOrder[0] || myId);
       setupDone = true;
       phase = 'buy';
+      randomizeTangaPrice();
       // 買順序不影響回合數：回合數在波動結束時已 +1，此處只更新操作序
       const names = arr.map(x => x.name + '(' + x.bid + ')').join(' → ');
       showToast('第 ' + round + ' 回合操作順序：' + names, 'success');
@@ -4357,8 +4471,11 @@
         });
         dealInitialCards();
         readyPlayers[1] = true;
-        showCinema('單機測試模式', '資金 99999 · 僅自己 · 測職業用');
-        setTimeout(() => runPreRouletteCountdown(), 800);
+        showCinema('單機測試模式', '資金 99999 · 略過輪盤 · 測職業用');
+        setTimeout(() => {
+          hideCinema();
+          applyTurnSetup(1, 'cw');
+        }, 600);
         return;
       }
       updateReadyCinema();
@@ -4416,7 +4533,25 @@
       _applyingNet = true;
       try {
         if (state.ts) _lastNetTs = state.ts;
-        if (state.players) room.players = state.players;
+        if (state.players) {
+          // 買貨階段不覆蓋手牌，避免別人買貨時把共享牌組替換掉
+          if (phase === 'buy' || state.phase === 'buy') {
+            const prevById = {};
+            (room.players || []).forEach(pl => {
+              prevById[String(pl.id)] = { cards: pl.cards, privateCards: pl.privateCards };
+            });
+            room.players = state.players;
+            (room.players || []).forEach(pl => {
+              const prev = prevById[String(pl.id)];
+              if (prev) {
+                if (Array.isArray(prev.cards)) pl.cards = prev.cards;
+                if (Array.isArray(prev.privateCards)) pl.privateCards = prev.privateCards;
+              }
+            });
+          } else {
+            room.players = state.players;
+          }
+        }
         if (state.goods) {
           state.goods.forEach(sg => {
             const g = GOODS.find(x => x.id === sg.id);
