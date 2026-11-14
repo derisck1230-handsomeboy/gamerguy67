@@ -348,6 +348,22 @@
       background: linear-gradient(180deg, #2a6ab0, #1a4f8a); color: #fff; border-color: #4a90d0;
       box-shadow: inset 0 1px 0 rgba(255,255,255,0.15);
     }
+    .cell.dim-purple {
+      background: linear-gradient(180deg, #2a1840, #1a1028); color: rgba(201,160,255,0.35); border-color: #3d2860;
+    }
+    .cell.filled-purple {
+      background: linear-gradient(180deg, #8e44ad, #6c3483); color: #fff; border-color: #bb8fce;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.18);
+    }
+    .tanga-wrap {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px dashed rgba(180,120,255,0.35);
+    }
+    .tanga-board {
+      grid-template-columns: 90px repeat(20, minmax(28px, 1fr)) !important;
+      min-width: 720px !important;
+    }
     .cell.current {
       box-shadow: 0 0 0 2px #fff, 0 0 16px var(--gold), inset 0 0 8px rgba(255,255,255,0.25);
       color: #fff !important;
@@ -912,6 +928,13 @@
         <span class="lb">藍區 421～500</span>
       </div>
       <div class="chess-board" id="chessBoard"></div>
+      <div class="tanga-wrap">
+        <div class="section-title" style="margin-top:12px;color:#c9a0ff;">🥇 TANGA 特殊軌道</div>
+        <div class="zone-legend">
+          <span style="color:#c9a0ff;">紫區 10～3000 · 每買貨回合隨機跳價 · 無波動牌</span>
+        </div>
+        <div class="chess-board tanga-board" id="tangaBoard"></div>
+      </div>
     </div>
 
     <div class="hand-section">
@@ -1266,7 +1289,7 @@
       { id: 'tanga', name: 'TANGA', icon: '🥇', price: 500, stock: 5, special: true }
     ];
     const NORMAL_GOODS = () => GOODS.filter(g => !g.special);
-    // TANGA 專用 20 格：10～3000，全黃，起始 500
+    // TANGA 專用 20 格：10～3000，紫色底，起始 500
     const TANGA_GRID = [10,20,40,60,80,100,150,200,300,400,500,650,800,1000,1300,1600,2000,2300,2600,3000];
     function tangaPriceToIndex(price) {
       let best = 0, bd = Infinity;
@@ -2221,13 +2244,19 @@
       if (tg && tangaEl) {
         const pos = tangaPriceToIndex(tg.price);
         tg.price = TANGA_GRID[pos];
-        let th = '<div class="board-label" style="color:#e8c547;">🥇 TANGA</div>';
+        let th = '<div class="board-label" style="color:#c9a0ff;">🥇 TANGA</div>';
+        // header row prices
+        TANGA_GRID.forEach((pv, i) => {
+          th += `<div class="board-head" style="color:#c9a0ff;border-bottom-color:#8e44ad;">${pv}</div>`;
+        });
+        th += '<div class="board-label" style="color:#c9a0ff;">價位</div>';
         TANGA_GRID.forEach((pv, i) => {
           let cls = 'cell';
-          if (i <= pos) cls += ' filled-yellow';
-          else cls += ' dim-yellow';
+          if (i <= pos) cls += ' filled-purple';
+          else cls += ' dim-purple';
           if (i === pos) cls += ' current';
-          th += `<div class="${cls}" title="TANGA · ${pv}">${i === pos || i === 0 || i === TANGA_GRID.length-1 ? pv : (i % 3 === 0 ? pv : '')}</div>`;
+          const label = (i === pos || i === 0 || i === TANGA_GRID.length - 1 || i % 3 === 0) ? pv : '';
+          th += `<div class="${cls}" title="TANGA · ${pv}">${i === pos ? tg.price : label}</div>`;
         });
         tangaEl.innerHTML = th;
         tangaEl.style.display = '';
