@@ -129,6 +129,12 @@
     }
     .player-card .pc-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
     .player-card .pc-avatar {
+      overflow: hidden;
+    }
+    .player-card .pc-avatar img {
+      width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 50%;
+    }
+    .player-card .pc-avatar {
       width: 36px; height: 36px; border-radius: 50%;
       background: radial-gradient(circle at 30% 30%, #2a4a6a, #0d2137);
       border: 2px solid var(--gold);
@@ -1099,13 +1105,14 @@
   </div>
 
   <!-- 遊戲內選擇職業 -->
-  <div class="modal-mask" id="sellJobModal">
+  <div class="modal-mask" id="sellJobModal" style="z-index:260;">
     <div class="modal" style="max-width:min(420px,96vw);">
       <h3>賣掉職業</h3>
       <p style="font-size:0.85rem;color:#5a3a22;">選擇要賣掉的職業（物權主宰不可賣）</p>
       <div id="sellJobModalList" style="display:flex;flex-direction:column;gap:10px;margin:12px 0;"></div>
       <div class="modal-actions">
-        <button class="btn-navy" onclick="document.getElementById('sellJobModal').classList.remove('show')">關閉</button>
+        <button class="btn-navy" type="button" onclick="document.getElementById('sellJobModal').classList.remove('show');document.getElementById('jobModal').classList.add('show');">返回職業</button>
+        <button class="btn-navy" type="button" onclick="document.getElementById('sellJobModal').classList.remove('show')">關閉</button>
       </div>
     </div>
   </div>
@@ -1318,9 +1325,9 @@
         id: 'rights_master',
         icon: '🐳',
         title: '物權主宰',
-        desc: '持有超過 5 個物權（含 TANGA）自動就任；物權少於 4 自動失去',
+        desc: '持有 5 個以上物權（含 5、含 TANGA）自動就任；物權少於 4 自動失去',
         cost: 0,
-        needRights: 6,
+        needRights: 5,
         sellPrice: 0
       },
       {
@@ -1832,6 +1839,12 @@
       if (!p.holdings) p.holdings = {};
       if (!p.cards) p.cards = [];
       if (!p.privateCards) p.privateCards = [];
+      if (!p.avatar) {
+        try {
+          if (sameId(p.id, myId)) p.avatar = localStorage.getItem('playerAvatar') || '🧑‍✈️';
+          else p.avatar = '🧑‍✈️';
+        } catch (e) { p.avatar = '🧑‍✈️'; }
+      }
       if (p.cash === undefined) p.cash = _offlineTest ? 99999 : 1000;
       if (p.debt === undefined) p.debt = 0;
       if (p.paidRightsBuyThisRound === undefined) p.paidRightsBuyThisRound = false;
@@ -1878,6 +1891,26 @@
     }
     dealInitialCards();
 
+    function getPlayerAvatar(pl) {
+      if (pl && pl.avatar) return pl.avatar;
+      try {
+        if (pl && sameId(pl.id, myId)) {
+          return localStorage.getItem('playerAvatar') || '🧑‍✈️';
+        }
+      } catch (e) {}
+      return (pl && pl.avatar) || '🧑‍✈️';
+    }
+    function isImageAvatar(v) {
+      return typeof v === 'string' && (v.startsWith('data:image') || v.startsWith('blob:') || /^https?:\/\//.test(v));
+    }
+    function avatarHtml(pl, sizePx) {
+      const v = getPlayerAvatar(pl);
+      if (isImageAvatar(v)) {
+        const s = sizePx ? ('width:'+sizePx+'px;height:'+sizePx+'px;') : '';
+        return '<img alt="頭像" src="' + v.replace(/"/g, '') + '" style="' + s + 'object-fit:cover;border-radius:50%;display:block;" />';
+      }
+      return v || '🧑‍✈️';
+    }
     function me() { return room.players.find(p => p.id === myId) || room.players[0]; }
     function activeSeatOrder() {
       // 只保留場上仍存在的玩家，避免人數少於預設時共享對象指錯
@@ -2102,15 +2135,12 @@
       document.getElementById('playersBar').innerHTML = room.players.map(pl => {
         const isMe = pl.id === myId;
         ensureJobs(pl);
-        const jobIcon = (pl.jobs || []).map(id => {
-          const j = JOBS.find(x => x.id === id);
-          return j ? j.icon : '';
-        }).filter(Boolean).join('') || '🧑‍✈️';
+        const av = getPlayerAvatar(pl);
         const net = totalAssets(pl);
         return `
         <div class="player-card ${isMe ? 'me' : ''}" onclick="showPlayerHoldings(${pl.id})" title="點擊查看個人簡介">
           <div class="pc-head">
-            <div class="pc-avatar">${jobIcon}</div>
+            <div class="pc-avatar">${isImageAvatar(av) ? '<img alt="" src="'+String(av).replace(/"/g,'')+'" />' : av}</div>
             <div class="pc-meta">
               <div class="name">${pl.name}${isMe ? ' ·你' : ''}</div>
               <div class="pc-job">${pl.jobTitle || '無職業'}${pl.isHost ? ' ·房主' : ''}</div>
@@ -2675,7 +2705,7 @@
       }
       const cnt = countRights(p.id);
       list.innerHTML = buyHtml +
-        `<p style="margin-top:12px;font-size:0.9rem;">持有物權：<strong>${cnt}</strong>／7（>5 成主宰）${hasJob(p,'rights_master')?'　🐳 物權主宰中':''}</p>
+        `<p style="margin-top:12px;font-size:0.9rem;">持有物權：<strong>${cnt}</strong>／7（≥5 成主宰）${hasJob(p,'rights_master')?'　🐳 物權主宰中':''}</p>
          <p style="font-size:0.8rem;color:#5a3a22;">持有 ≥4 個物權自動成為物權主宰</p>`;
       document.getElementById('rightsModal').classList.add('show');
     }
@@ -2738,21 +2768,21 @@
 
     function checkAutoRightsMaster(player) {
       const cnt = countRights(player.id);
-      if (cnt > 5 && !hasJob(player, 'rights_master')) {
+      if (cnt >= 5 && !hasJob(player, 'rights_master')) {
         if (round < 2) {
           showToast('物權主宰僅能在第二回合起自動就任', 'error');
           return;
         }
         const other = room.players.find(pl => hasJob(pl, 'rights_master') && pl.id !== player.id);
         if (other) {
-          showToast('你已持有超過 5 個物權，但場上已有物權主宰', 'error');
+          showToast('你已持有 5 個以上物權，但場上已有物權主宰', 'error');
           return;
         }
         GOODS.forEach(g => { goodsRights[g.id] = player.id; });
         ensureJobs(player);
         if (!player.jobs.includes('rights_master')) player.jobs.push('rights_master');
         ensureJobs(player);
-        showBigAlert('🐳 物權主宰誕生', `「${player.name}」持有 ${cnt} 個物權（超過5），自動成為物權主宰！`);
+        showBigAlert('🐳 物權主宰誕生', `「${player.name}」持有 ${cnt} 個物權（≥5），自動成為物權主宰！`);
       }
     }
 
@@ -3826,7 +3856,7 @@
     function openSellJobModal() {
       const p = me();
       const list = document.getElementById('sellJobModalList');
-      if (!list) return;
+      if (!list) { showToast('賣職業頁面載入失敗', 'error'); return; }
       const sellable = ensureJobs(p).filter(jid => {
         const curJob = JOBS.find(j => j.id === jid);
         return curJob && curJob.sellPrice > 0 && curJob.id !== 'rights_master';
@@ -3839,7 +3869,14 @@
           return `<button type="button" class="btn-red" style="width:100%;padding:16px;font-size:1.05rem;font-weight:800;border-radius:14px;min-height:52px;" onclick="askSellJob('${j.id}','${j.title}')">${j.icon} 賣掉「${j.title}」　回收 ${j.sellPrice}</button>`;
         }).join('');
       }
-      document.getElementById('sellJobModal').classList.add('show');
+      // 先關職業頁，避免被蓋住
+      const jobM = document.getElementById('jobModal');
+      if (jobM) jobM.classList.remove('show');
+      const sm = document.getElementById('sellJobModal');
+      if (sm) {
+        sm.style.zIndex = '260';
+        sm.classList.add('show');
+      }
     }
     async function askSellJob(jobId, title) {
       const ok = await gameConfirm('賣掉職業', '確定賣掉「' + title + '」？');
@@ -4488,10 +4525,17 @@
       setupCountdownStarted = false;
       readyPlayers = {};
       const online = isOnlineMode();
+      try {
+        const av = localStorage.getItem('playerAvatar') || '🧑‍✈️';
+        const self = (room.players || []).find(pl => sameId(pl.id, myId));
+        if (self) self.avatar = av;
+      } catch (e) {}
       if (!online) {
         // 單機測試：僅自己，資金 99999（測職業／找 bug）
         const nm = localStorage.getItem('playerName') || '測試船長';
-        room.players = [{ id: 1, name: nm, cash: 99999, debt: 0, holdings: {}, cards: [], privateCards: [], isHost: true }];
+        let av = '🧑‍✈️';
+        try { av = localStorage.getItem('playerAvatar') || av; } catch(e) {}
+        room.players = [{ id: 1, name: nm, cash: 99999, debt: 0, holdings: {}, cards: [], privateCards: [], isHost: true, avatar: av }];
         myId = 1;
         room.players.forEach(pl => {
           if (!pl.holdings) pl.holdings = {};

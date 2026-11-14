@@ -143,6 +143,29 @@
       margin-bottom: 10px; color: var(--wood-dark);
     }
     .footer-note { margin-top: 18px; font-size: 0.75rem; color: var(--wood-light); text-align: center; }
+    .settings-fab {
+      position: fixed; right: 16px; bottom: 18px; z-index: 50;
+      width: 52px; height: 52px; border-radius: 50%;
+      border: 2px solid var(--gold);
+      background: linear-gradient(160deg, #1a3a55, #0c1e30);
+      color: #f3e5c5; font-size: 1.35rem;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .settings-fab:active { transform: scale(0.96); }
+    .avatar-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 12px 0;
+    }
+    .avatar-opt {
+      aspect-ratio: 1; border-radius: 14px; border: 2px solid rgba(201,162,39,0.35);
+      background: rgba(255,255,255,0.35); font-size: 1.8rem;
+      display: flex; align-items: center; justify-content: center; cursor: pointer;
+    }
+    .avatar-opt.active {
+      border-color: #c9a227; background: rgba(201,162,39,0.28);
+      box-shadow: 0 0 0 2px rgba(201,162,39,0.25);
+    }
     .or-text { text-align: center; font-size: 0.85rem; color: var(--wood-light); margin: 12px 0 6px; }
     .rules-box {
       max-height: 58vh; overflow-y: auto; text-align: left;
@@ -253,6 +276,7 @@
     <img id="tlImg" alt="稱號" />
     <button type="button" class="tl-close" onclick="closeTitleLightbox()">關閉</button>
   </div>
+  <button type="button" class="settings-fab" id="settingsFab" onclick="goStep('settings')" title="設定">⚙️</button>
   <div class="frame" id="frame">
     <div class="token-hud" title="期貨代幣（大廳貨幣，與局內金額無關）">
       <div class="token-coin" aria-hidden="true">🚢</div>
@@ -271,6 +295,22 @@
       <button class="btn btn-secondary" onclick="goStep('activity'); renderActivity();" style="margin-top:8px;">🎁 活動</button>
       <button class="btn btn-ghost" onclick="goStep('titles'); try{renderTitles();}catch(e){console.error(e);}" style="margin-top:8px;">🏷️ 稱號</button>
       <button class="btn btn-test" onclick="quickTest()">⚡ 快速 2 人測試</button>
+    </div>
+
+    <div class="panel" id="stepSettings">
+      <span class="step-tag">⚙️ 設定</span>
+      <div class="summary">個人化設定會套用到遊戲內個人簡介</div>
+      <label>目前頭像</label>
+      <div id="avatarPreviewWrap" style="display:flex;justify-content:center;margin:10px 0 14px;">
+        <div id="avatarPreview" class="avatar-preview-box">🧑‍✈️</div>
+      </div>
+      <label>上傳自己的照片</label>
+      <input type="file" id="avatarFile" accept="image/*" style="margin:8px 0 6px;" onchange="onAvatarFile(event)" />
+      <p style="font-size:0.78rem;color:#5a3a22;margin:0 0 12px;">會自動壓縮成小圖後儲存（建議正方形照片）</p>
+      <label>或選擇內建頭像</label>
+      <div class="avatar-grid" id="avatarGrid"></div>
+      <button class="btn btn-secondary" type="button" onclick="setPlayerAvatar('🧑‍✈️')" style="margin-top:8px;">還原預設頭像</button>
+      <button class="btn btn-ghost" onclick="goStep('start')">返回</button>
     </div>
 
     <div class="panel" id="stepEvents">
@@ -359,7 +399,7 @@
         <h3>物權</h3>
         <ul>
           <li>買價＝市價×10；持有價值＝市價×5；第 2 回合起可買；每回合限賣 1 項</li>
-          <li>超過 5 個物權（含 TANGA）自動物權主宰；少於 4 自動解除</li>
+          <li>5 個以上物權（含 5、含 TANGA）自動物權主宰；少於 4 自動解除</li>
           <li>特殊貨物 TANGA：每買貨回合隨機跳價，物權買價＝現價×20；賣出抽 40% 給物權持有者</li>
           <li>💀 特權者就任後限時 2 回合，到期移除不退款</li>
         </ul>
@@ -656,6 +696,136 @@
       if (msg) { msg.textContent = '餵食成功！小貓更圓了，期貨代幣 +10（任務三可再領 +5）'; msg.style.color = '#1b6b3a'; }
     }
 
+    const AVATAR_PRESETS = ['🧑‍✈️','👨‍🦱','👩‍🦰','🧔','👨‍🚀','👩‍🚀','🦊','🐱','🐺','🐉','⚡','🌊','🔥','🍀','🎭','🎩'];
+    function isImageAvatar(v) {
+      return typeof v === 'string' && (v.startsWith('data:image') || v.startsWith('blob:') || /^https?:\/\//.test(v));
+    }
+    function paintAvatarPreview(v) {
+      const prev = document.getElementById('avatarPreview');
+      if (!prev) return;
+      if (isImageAvatar(v)) {
+        prev.innerHTML = '<img alt="頭像" src="' + v + '" />';
+      } else {
+        prev.textContent = v || '🧑‍✈️';
+      }
+    }
+    function renderAvatarPicker() {
+      const cur = localStorage.getItem('playerAvatar') || '🧑‍✈️';
+      paintAvatarPreview(cur);
+      const grid = document.getElementById('avatarGrid');
+      if (!grid) return;
+      grid.innerHTML = AVATAR_PRESETS.map(a =>
+        `<button type="button" class="avatar-opt ${a===cur?'active':''}" onclick="setPlayerAvatar('${a}')">${a}</button>`
+      ).join('');
+    }
+    function setPlayerAvatar(a) {
+      try { localStorage.setItem('playerAvatar', a); } catch (e) {
+        alert('儲存失敗，圖片可能太大，請換一張較小的圖');
+        return;
+      }
+      paintAvatarPreview(a);
+      renderAvatarPicker();
+    }
+    // 頭像壓縮：目標約 24～40KB，平衡清晰度與 localStorage／聯機體積
+    const AVATAR_OUT_SIZE = 96;          // 輸出邊長（頭像圓形夠用）
+    const AVATAR_TARGET_BYTES = 36 * 1024; // 目標二進位大小
+    const AVATAR_MAX_BYTES = 56 * 1024;    // 硬上限
+
+    function dataUrlByteLength(dataUrl) {
+      const i = dataUrl.indexOf(',');
+      const b64 = i >= 0 ? dataUrl.slice(i + 1) : dataUrl;
+      // base64 → bytes
+      return Math.floor(b64.length * 0.75);
+    }
+
+    function preferWebp() {
+      try {
+        const c = document.createElement('canvas');
+        c.width = 2; c.height = 2;
+        return c.toDataURL('image/webp').indexOf('data:image/webp') === 0;
+      } catch (e) { return false; }
+    }
+
+    function encodeAvatarCanvas(canvas) {
+      const useWebp = preferWebp();
+      const mime = useWebp ? 'image/webp' : 'image/jpeg';
+      // 由高品質往下試，直到低於目標大小
+      const qualities = [0.88, 0.8, 0.72, 0.64, 0.55, 0.45, 0.36];
+      let best = canvas.toDataURL(mime, qualities[0]);
+      for (const q of qualities) {
+        const d = canvas.toDataURL(mime, q);
+        best = d;
+        if (dataUrlByteLength(d) <= AVATAR_TARGET_BYTES) break;
+      }
+      // 仍超硬上限：再縮一檔尺寸
+      if (dataUrlByteLength(best) > AVATAR_MAX_BYTES) {
+        const small = document.createElement('canvas');
+        const side = 72;
+        small.width = side; small.height = side;
+        small.getContext('2d').drawImage(canvas, 0, 0, side, side);
+        for (const q of [0.7, 0.55, 0.4, 0.3]) {
+          best = small.toDataURL(mime, q);
+          if (dataUrlByteLength(best) <= AVATAR_MAX_BYTES) break;
+        }
+      }
+      return best;
+    }
+
+    function drawImageCover(ctx, img, size) {
+      // 高品質縮放
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      const s = Math.min(img.width, img.height);
+      const sx = (img.width - s) / 2;
+      const sy = (img.height - s) / 2;
+      ctx.drawImage(img, sx, sy, s, s, 0, 0, size, size);
+    }
+
+    function onAvatarFile(ev) {
+      const file = ev.target && ev.target.files && ev.target.files[0];
+      if (!file) return;
+      if (!file.type || !file.type.startsWith('image/')) {
+        alert('請選擇圖片檔');
+        return;
+      }
+      // 原圖過大先提示（仍會壓縮，但避免無謂記憶體）
+      if (file.size > 12 * 1024 * 1024) {
+        alert('原圖超過 12MB，請先用相簿壓縮或裁切後再傳');
+        try { ev.target.value = ''; } catch (e) {}
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function () {
+        const img = new Image();
+        img.onload = function () {
+          try {
+            const size = AVATAR_OUT_SIZE;
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            // 白底，避免透明 PNG 變黑
+            ctx.fillStyle = '#1a2a3a';
+            ctx.fillRect(0, 0, size, size);
+            drawImageCover(ctx, img, size);
+            const data = encodeAvatarCanvas(canvas);
+            if (dataUrlByteLength(data) > AVATAR_MAX_BYTES) {
+              alert('壓縮後仍太大，請換一張較簡單的照片');
+              return;
+            }
+            setPlayerAvatar(data);
+          } catch (e) {
+            alert('處理圖片失敗');
+          }
+        };
+        img.onerror = function () { alert('無法讀取圖片'); };
+        img.src = reader.result;
+      };
+      reader.onerror = function () { alert('讀取檔案失敗'); };
+      reader.readAsDataURL(file);
+      try { ev.target.value = ''; } catch (e) {}
+    }
     function redeemPromo() {
       const code = (document.getElementById('promoCode').value || '').trim();
       const msg = document.getElementById('promoMsg');
@@ -711,12 +881,13 @@
 
     function goStep(name) {
       document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-      const map = { start: 'stepStart', name: 'stepName', room: 'stepRoom', rules: 'stepRules', events: 'stepEvents', activity: 'stepActivity', titles: 'stepTitles' };
+      const map = { start: 'stepStart', name: 'stepName', room: 'stepRoom', rules: 'stepRules', events: 'stepEvents', activity: 'stepActivity', titles: 'stepTitles', settings: 'stepSettings' };
       const panel = document.getElementById(map[name]);
       if (panel) panel.classList.add('active');
       const frame = document.getElementById('frame');
       if (frame) frame.classList.toggle('wide', name === 'rules');
       if (name === 'room') { try { refreshRoomList(); } catch(e) {} }
+      if (name === 'settings') { try { renderAvatarPicker(); } catch(e) {} }
       if (name === 'room') {
         const ns = document.getElementById('nameSummary');
         if (ns) ns.textContent = playerName || '—';
