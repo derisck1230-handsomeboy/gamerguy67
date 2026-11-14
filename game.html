@@ -560,6 +560,18 @@
     .pause-menu-box button { width: 100%; margin-top: 8px; padding: 12px; border-radius: 12px; font-weight: 700; }
 
     .btn-red { background: #9b2226; color: #fff; }
+    .treasure-hud {
+      position: fixed; left: 10px; bottom: 72px; z-index: 90;
+      width: 64px; padding: 6px;
+      background: linear-gradient(160deg, rgba(20,12,40,0.92), rgba(10,8,24,0.9));
+      border: 2px solid #c9a227; border-radius: 12px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+      cursor: pointer; text-align: center;
+    }
+    .treasure-hud img { width: 52px; height: 52px; object-fit: cover; border-radius: 8px; display: block; margin: 0 auto; }
+    .treasure-hud .th-meta { font-size: 0.65rem; color: #e8c547; margin-top: 4px; line-height: 1.2; }
+    .treasure-hud.active-buff { box-shadow: 0 0 14px rgba(180,80,255,0.7); border-color: #bb8fce; }
+
     .bankrupt-slide {
       position: fixed; left: 0; top: 20%; z-index: 160;
       transform: translateX(-110%);
@@ -795,6 +807,7 @@
 
   
     .game-confirm-mask {
+      z-index: 280 !important;
       position: fixed; inset: 0; z-index: 200;
       background: rgba(6,14,24,0.72);
       display: none; align-items: center; justify-content: center;
@@ -967,6 +980,10 @@
   </div>
 
   <div class="action-bar" id="actionBar"></div>
+  <div id="treasureHud" class="treasure-hud" style="display:none;" onclick="activateTreasureOrb()" title="金融亡球">
+    <img id="treasureHudImg" src="assets/treasures/finance_orb.jfif" alt="金融亡球" />
+    <div class="th-meta"><span id="treasureHudUses">2</span>次 · CD<span id="treasureHudCd">0</span></div>
+  </div>
   <div class="bankrupt-slide" id="bankruptSlide">
     <div class="bs-title" id="bsTitle">玩家已破產</div>
     <div class="bs-msg" id="bsMsg">此玩家已完全破產（負債），請選擇：</div>
@@ -1178,7 +1195,7 @@
       <div class="play-reveal-cards" id="playRevealCards"></div>
     </div>
   </div>
-  <div class="modal-mask" id="privilegeModal">
+  <div class="modal-mask" id="privilegeModal" style="z-index:250;">
     <div class="modal-box" style="max-width:520px;">
       <h3>💀 特權業面</h3>
       <p style="font-size:0.85rem;color:#5a3a22;margin:0 0 10px;">第一能力免費；後兩項各需 1500 解鎖。物權主宰不可被刪除／複製。</p>
@@ -1704,6 +1721,16 @@
         if (d.owned.includes(id)) return false;
         d.owned.push(id);
         localStorage.setItem('playerTitles', JSON.stringify(d));
+        if (id === 'finance_reaper') {
+          try {
+            const m = JSON.parse(localStorage.getItem('lobbyMeta') || '{}');
+            if (!m.treasures) m.treasures = {};
+            if (!m.treasures.finance_orb) m.treasures.finance_orb = { owned: true, equipped: false, usesLeft: 2 };
+            else m.treasures.finance_orb.owned = true;
+            localStorage.setItem('lobbyMeta', JSON.stringify(m));
+            showToast('獲得寶物「金融亡球」！可至大廳倉庫裝備', 'success');
+          } catch (e) {}
+        }
         const def = TITLE_DEFS[id];
         showToast('解鎖稱號「' + (def ? def.name : id) + '」' + (reason ? '：' + reason : ''), 'success');
         return true;
@@ -1911,6 +1938,61 @@
       }
       return v || '🧑‍✈️';
     }
+    function loadTreasureState() {
+      try {
+        const m = JSON.parse(localStorage.getItem('lobbyMeta') || '{}');
+        return m.treasures || {};
+      } catch (e) { return {}; }
+    }
+    function saveTreasureState(tre) {
+      try {
+        const m = JSON.parse(localStorage.getItem('lobbyMeta') || '{}');
+        m.treasures = tre;
+        localStorage.setItem('lobbyMeta', JSON.stringify(m));
+      } catch (e) {}
+    }
+    // 本局寶物狀態（金融亡球）
+    let orbState = { equipped: false, usesLeft: 2, cooldownUntil: 0, activeUntilRound: -1 };
+    function initOrbFromLobby() {
+      const tre = loadTreasureState();
+      const o = tre.finance_orb || {};
+      orbState.equipped = !!(o.owned && o.equipped);
+      if (o.usesLeft != null) orbState.usesLeft = o.usesLeft;
+      else orbState.usesLeft = 2;
+      orbState.cooldownUntil = 0;
+      orbState.activeUntilRound = -1;
+    }
+    function updateTreasureHud() {
+      const el = document.getElementById('treasureHud');
+      if (!el) return;
+      if (!orbState.equipped) { el.style.display = 'none'; return; }
+      el.style.display = 'block';
+      el.classList.toggle('active-buff', round <= orbState.activeUntilRound);
+      const u = document.getElementById('treasureHudUses');
+      const c = document.getElementById('treasureHudCd');
+      if (u) u.textContent = String(Math.max(0, orbState.usesLeft));
+      if (c) c.textContent = String(Math.max(0, orbState.cooldownUntil - round));
+    }
+    function activateTreasureOrb() {
+      if (!orbState.equipped) return;
+      if (orbState.usesLeft <= 0) { showToast('金融亡球次數已用完', 'error'); return; }
+      if (round < orbState.cooldownUntil) { showToast('冷卻中，需再等 ' + (orbState.cooldownUntil - round) + ' 回合', 'error'); return; }
+      orbState.usesLeft -= 1;
+      orbState.activeUntilRound = round; // 本回合生效：他人賣價 -30%
+      orbState.cooldownUntil = round + 2;
+      const tre = loadTreasureState();
+      if (!tre.finance_orb) tre.finance_orb = { owned: true, equipped: true };
+      tre.finance_orb.usesLeft = orbState.usesLeft;
+      saveTreasureState(tre);
+      updateTreasureHud();
+      showToast('金融亡球啟動：本回合他人賣出價格 -30%', 'success');
+      room._orbActiveUntil = round;
+      room._orbOwnerId = myId;
+      if (typeof syncPush === 'function') syncPush();
+      if (isOnlineMode() && window.GameNet) {
+        try { GameNet.sendEvent('orb_activate', { round: round, ownerId: myId }); } catch (e) {}
+      }
+    }
     function me() { return room.players.find(p => p.id === myId) || room.players[0]; }
     function activeSeatOrder() {
       // 只保留場上仍存在的玩家，避免人數少於預設時共享對象指錯
@@ -2085,7 +2167,7 @@
       document.getElementById('debtDisplay').textContent = p.debt;
       document.getElementById('bankDisplay').textContent = bankFunds;
       document.getElementById('roundNum').textContent = round;
-      try { (room.players||[]).forEach(markBankruptIfNeeded); updateBankruptUI(); } catch(e) {}
+      try { (room.players||[]).forEach(markBankruptIfNeeded); updateBankruptUI(); updateTreasureHud(); } catch(e) {}
       try { updateOrderStrip(); } catch(e) {}
       // 買貨階段換人時重設計時
       if (phase === 'buy' && setupDone && currentTurnId !== timerForPlayerId) { try { startBuyPhaseTimer(); } catch(e) {} }
@@ -2611,6 +2693,18 @@
       if (qty < 1 || qty > hold) { showToast('數量不正確', 'error'); return; }
       let income = qty * g.price;
       let note = '';
+      // 金融亡球：他人啟動時，自己賣價 -30%
+      try {
+        const orbActive = (typeof orbState !== 'undefined' && orbState.activeUntilRound >= round);
+        // 聯機時以同步狀態為準：簡化為本機 orb 或房間標記
+        const roomOrb = (room._orbActiveUntil || -1) >= round && !sameId(room._orbOwnerId, myId);
+        const selfOrb = orbActive; // 自己啟動不砍自己
+        if (roomOrb) {
+          const cut = Math.floor(income * 0.3);
+          income -= cut;
+          note += `（金融亡球 -30%：${cut}）`;
+        }
+      } catch (e) {}
       // TANGA 特殊：賣出抽 40% 給物權持有者
       if (g.id === 'tanga' || g.special) {
         const ben = rightsBeneficiary(g.id);
@@ -3462,12 +3556,16 @@
     }
 
     function checkWin() {
-      room.players.forEach(pl => {
-        const net = totalAssets(pl); // 已扣除債務
-        if (net >= 10000) {
-          showToast(`🎉 ${pl.name} 淨總資產達到 ${net}（已扣債務），獲勝！`, 'success');
-        }
+      // 測試／單機不觸發輸贏；僅聯機淨資產達 10000 立即全場結算
+      if (!isOnlineMode()) return;
+      let hit = false;
+      (room.players || []).forEach(pl => {
+        if (totalAssets(pl) >= 10000) hit = true;
       });
+      if (hit) {
+        showToast('有玩家淨資產達到 10000，遊戲結束！', 'success');
+        endGameSettle();
+      }
     }
 
     function showPlayerHoldings(pid) {
@@ -3890,7 +3988,14 @@
     }
     async function askSellJob(jobId, title) {
       const ok = await gameConfirm('賣掉職業', '確定賣掉「' + title + '」？');
-      if (ok) sellJob(jobId);
+      if (ok) {
+        document.getElementById('sellJobModal')?.classList.remove('show');
+        sellJob(jobId);
+      } else {
+        // 取消後確保賣職業頁仍可操作
+        const sm = document.getElementById('sellJobModal');
+        if (sm) { sm.style.zIndex = '260'; sm.classList.add('show'); }
+      }
     }
     function sellJob(jobId) {
       if (jobId === 'rights_master') {
@@ -4529,6 +4634,7 @@
     }
     function beginSetupFlow() {
       try { requestWakeLock(); } catch(e) {}
+      try { initOrbFromLobby(); } catch(e) {}
       if (setupDone || setupStarted) return;
       setupStarted = true;
       phase = 'setup';
@@ -4582,6 +4688,8 @@
         turnOrder: turnOrder,
         turnDir: turnDir,
         setupDone: setupDone,
+        _orbActiveUntil: room._orbActiveUntil || -1,
+        _orbOwnerId: room._orbOwnerId || null,
         firstPlayerId: firstPlayerId,
         currentTurnId: currentTurnId,
         phaseDoneIds: phaseDoneIds,
@@ -4657,6 +4765,8 @@
         if (state.turnOrder) turnOrder = state.turnOrder.map(Number);
         if (state.turnDir) turnDir = state.turnDir;
         if (state.setupDone != null) setupDone = state.setupDone;
+        if (state._orbActiveUntil != null) room._orbActiveUntil = state._orbActiveUntil;
+        if (state._orbOwnerId != null) room._orbOwnerId = state._orbOwnerId;
         if (state.firstPlayerId != null) firstPlayerId = state.firstPlayerId;
         if (state.currentTurnId != null) currentTurnId = state.currentTurnId;
         if (state.seatOrder) seatOrder = state.seatOrder;
@@ -4740,6 +4850,11 @@
           if (payload && payload.round != null) round = Number(payload.round);
           if (!bidState.active) openBidRound();
           render();
+        }
+        if (ev === 'orb_activate' && payload) {
+          room._orbActiveUntil = payload.round;
+          room._orbOwnerId = payload.ownerId;
+          showToast('有玩家啟動了金融亡球！本回合賣價可能 -30%', 'error');
         }
         if (ev === 'bid_result' && payload) {
           bidState.active = false;
