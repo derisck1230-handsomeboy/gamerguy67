@@ -3471,23 +3471,33 @@
     }
 
     function showPlayerHoldings(pid) {
-      const pl = room.players.find(p => p.id === pid);
+      const pl = room.players.find(p => sameId(p.id, pid));
       if (!pl) return;
-      const isMe = pl.id === myId;
+      const isMe = sameId(pl.id, myId);
       ensureJobs(pl);
-      const jobIcon = (pl.jobs || []).map(id => { const j = JOBS.find(x => x.id === id); return j ? j.icon : ''; }).filter(Boolean).join('') || '🧑‍✈️';
+      if (isMe) {
+        try { pl.avatar = localStorage.getItem('playerAvatar') || pl.avatar || '🧑‍✈️'; } catch (e) {}
+      }
+      const jobLine = (pl.jobs || []).map(id => {
+        const j = JOBS.find(x => x.id === id);
+        return j ? (j.icon + ' ' + j.title) : '';
+      }).filter(Boolean).join('、');
+      const av = getPlayerAvatar(pl);
+      const avBlock = isImageAvatar(av)
+        ? '<img alt="頭像" src="' + String(av).replace(/"/g, '') + '" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;" />'
+        : (av || '🧑‍✈️');
       const net = totalAssets(pl);
       const hv = holdValue(pl);
-      document.getElementById('holdingsTitle').textContent = isMe ? '我的個人簡介' : `${pl.name} · 個人簡介`;
+      document.getElementById('holdingsTitle').textContent = isMe ? '我的個人簡介' : (pl.name + ' · 個人簡介');
 
       const titleDef = getEquippedTitleDef(pl);
       let html = `
         ${titleDef ? `<div class="profile-title-banner">${titleDef.banner?`<img class="pt-img" src="${titleDef.banner}" alt="" onerror="this.style.display=\'none\'" />`:''}<div class="pt-shade"></div><span class="pt-text ${titleDef.style||''}">${titleDef.name}</span></div>` : ''}
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;padding:12px;background:rgba(61,36,20,0.08);border-radius:12px;border:1px solid rgba(201,162,39,0.35);">
-          <div style="width:52px;height:52px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#2a4a6a,#0d2137);border:2px solid #c9a227;display:flex;align-items:center;justify-content:center;font-size:1.6rem;">${jobIcon}</div>
+          <div style="width:56px;height:56px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#2a4a6a,#0d2137);border:2px solid #c9a227;display:flex;align-items:center;justify-content:center;font-size:1.6rem;overflow:hidden;flex-shrink:0;">${avBlock}</div>
           <div>
             <div style="font-weight:800;font-size:1.1rem;color:#3d2414;">${pl.name}${isMe ? '（你）' : ''}${pl.isHost ? ' · 房主' : ''}</div>
-            <div style="font-size:0.85rem;color:#5a3a22;margin-top:2px;">${ensureJobs(pl).length ? jobIcon + ' ' + pl.jobTitle : '尚未選擇職業'}${ensureJobs(pl).length ? '　價值 ' + jobValueOf(pl) : ''}</div>
+            <div style="font-size:0.85rem;color:#5a3a22;margin-top:2px;">${jobLine || '尚未選擇職業'}${jobLine ? '　價值 ' + jobValueOf(pl) : ''}</div>
           </div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
