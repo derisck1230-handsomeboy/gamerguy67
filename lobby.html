@@ -1003,7 +1003,8 @@
             ? `<button class="btn ${chip.equipped ? 'btn-primary' : 'btn-secondary'}" style="width:100%;padding:10px;margin:0;" onclick="toggleEquipChip()">${chip.equipped ? '已裝備 · 點擊卸下' : '裝備'}</button>
                <div style="font-size:0.75rem;margin-top:6px;">剩餘 ${chip.usesLeft != null ? chip.usesLeft : 2} 次</div>`
             : `<div style="color:#8a6e4a;font-weight:700;">未持有</div>
-               <button class="btn btn-primary" style="width:100%;padding:10px;margin-top:8px;" onclick="buyHackerChipShop()">商店購買（500 代幣）</button>`}
+               <div style="font-size:0.75rem;color:#8a6e4a;margin-top:6px;">請至「商店」購買解鎖</div>
+               <button class="btn btn-secondary" style="width:100%;padding:10px;margin-top:8px;" onclick="openShopSoon()">前往商店</button>`}
         </div>`;
       saveMeta(m);
     }
@@ -1016,18 +1017,32 @@
       saveMeta(m);
       renderRelics();
     }
+    function lobbyToast(msg, type) {
+      let el = document.getElementById('lobbyToast');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'lobbyToast';
+        el.style.cssText = 'position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:9999;max-width:90vw;padding:12px 18px;border-radius:12px;border:2px solid #c9a227;background:linear-gradient(160deg,#1a2a40,#0c1828);color:#f3e5c5;font-weight:700;font-size:0.9rem;box-shadow:0 8px 24px rgba(0,0,0,0.45);opacity:0;transition:opacity 0.25s;pointer-events:none;text-align:center;';
+        document.body.appendChild(el);
+      }
+      el.style.borderColor = type === 'error' ? '#e74c3c' : '#c9a227';
+      el.textContent = msg;
+      el.style.opacity = '1';
+      clearTimeout(window._lobbyToastT);
+      window._lobbyToastT = setTimeout(function(){ el.style.opacity = '0'; }, 2800);
+    }
     function buyHackerChipShop() {
       const m = loadMeta();
       if (!m.treasures) m.treasures = {};
-      if (m.treasures.hacker_chip && m.treasures.hacker_chip.owned) { alert('已持有駭客晶片'); return; }
+      if (m.treasures.hacker_chip && m.treasures.hacker_chip.owned) { lobbyToast('已持有駭客晶片', 'error'); return; }
       const tokens = m.tokens || 0;
-      if (tokens < 500) { alert('代幣不足（需 500）'); return; }
+      if (tokens < 500) { lobbyToast('代幣不足（需 500）', 'error'); return; }
       m.tokens = tokens - 500;
       m.treasures.hacker_chip = { owned: true, equipped: false, usesLeft: 2, fromShop: true, catalogUnlocked: true };
       saveMeta(m);
       try { document.getElementById('tokenDisplay') && (document.getElementById('tokenDisplay').textContent = m.tokens); } catch(e) {}
       renderRelics();
-      alert('已購買駭客晶片！');
+      lobbyToast('已購買並解鎖圖鑑「駭客晶片」', 'success');
     }
     function toggleEquipOrb() {
       const m = loadMeta();

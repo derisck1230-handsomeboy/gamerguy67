@@ -811,6 +811,23 @@
       overscroll-behavior: contain;
     }
     .modal-mask.show { display: flex; }
+    .modal-mask .modal-box,
+    .modal-mask .modal {
+      max-height: min(85vh, 640px);
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    #privilegeModal .modal-box,
+    #gangsterModal .modal-box,
+    #politicianModal .modal-box,
+    #privilegeModal .modal,
+    #gangsterModal .modal,
+    #politicianModal .modal {
+      max-height: min(80vh, 560px);
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: 24px;
+    }
     .modal {
       background: var(--parchment); color: var(--ink);
       border: 3px solid var(--gold); border-radius: 8px;
@@ -3268,6 +3285,18 @@
       renderCards('neighborCards', n.cards, 'neighbor');
       renderCards('privateCards', p.privateCards, 'private');
       renderActionBar();
+      try {
+        const jb = document.getElementById('jobBtn');
+        if (jb) {
+          if (round < 2) {
+            jb.style.opacity = '0.45';
+            jb.title = '第 1 回合不可購買職業';
+          } else {
+            jb.style.opacity = '1';
+            jb.title = '';
+          }
+        }
+      } catch (e) {}
       try { renderBackpack(); } catch (e) {}
       try { renderMarketPanel(); } catch (e) {}
     }
@@ -4878,6 +4907,10 @@
       if (typeof syncPush === 'function') syncPush();
     }
     function openJobModal() {
+      if (typeof round !== 'undefined' && round < 2) {
+        showToast('第 1 回合不可購買職業', 'error');
+        return;
+      }
       const p = me();
       ensureJobs(p);
       pendingJobId = null;
@@ -4944,6 +4977,9 @@
     }
     function confirmJob() {
       if (!pendingJobId) { showToast('請選擇一個職業', 'error'); return; }
+      if (typeof round !== 'undefined' && round < 2) {
+        showToast('第 1 回合不可購買職業', 'error'); return;
+      }
       const p = me();
       const job = JOBS.find(j => j.id === pendingJobId);
       if (!job) { showToast('職業不存在', 'error'); return; }
@@ -4955,6 +4991,15 @@
       ensureJobs(p);
       if (hasJob(p, job.id)) {
         showToast('你已擁有此職業', 'error');
+        return;
+      }
+      if (!p._jobTradeThisRound) p._jobTradeThisRound = {};
+      if (p._jobTradeRoundNum !== round) {
+        p._jobTradeThisRound = {};
+        p._jobTradeRoundNum = round;
+      }
+      if (p._jobTradeThisRound[job.id]) {
+        showToast('本回合此職業已進行過買賣，不可再操作', 'error');
         return;
       }
       if (job.cost && job.cost > 0) {
@@ -4972,6 +5017,9 @@
         }
       }
       p.jobs.push(job.id);
+      if (!p._jobTradeThisRound) p._jobTradeThisRound = {};
+      p._jobTradeThisRound[job.id] = 'buy';
+      p._jobTradeRoundNum = round;
       ensureJobs(p);
       initJobExtraState(p);
       if (job.id === 'gangster') p.gangsterBoughtRound = round;
@@ -5028,6 +5076,15 @@
       if (!p.jobs.length) { showToast('你沒有職業可賣', 'error'); return; }
       if (!jobId) jobId = p.jobs[0];
       if (!hasJob(p, jobId)) { showToast('你沒有此職業', 'error'); return; }
+      if (!p._jobTradeThisRound) p._jobTradeThisRound = {};
+      if (p._jobTradeRoundNum !== round) {
+        p._jobTradeThisRound = {};
+        p._jobTradeRoundNum = round;
+      }
+      if (p._jobTradeThisRound[jobId]) {
+        showToast('本回合此職業已進行過買賣，不可再操作', 'error');
+        return;
+      }
       const job = JOBS.find(j => j.id === jobId);
       if (job && job.sellPrice && job.sellPrice > 0) {
         const price = job.sellPrice;
@@ -5050,6 +5107,9 @@
         p.cash += price;
         bankFunds -= price;
         p.jobs = p.jobs.filter(id => id !== jobId);
+      if (!p._jobTradeThisRound) p._jobTradeThisRound = {};
+      p._jobTradeThisRound[jobId] = 'sell';
+      p._jobTradeRoundNum = round;
         ensureJobs(p);
         closeModals();
         render();
