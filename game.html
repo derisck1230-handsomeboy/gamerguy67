@@ -306,6 +306,44 @@
       font-weight: 700; padding-right: 4px;
       white-space: nowrap;
     }
+    .board-head.risk-bet-zone {
+      box-shadow: inset 0 0 0 2px rgba(255, 215, 0, 0.95);
+      outline: 2px solid rgba(255, 180, 0, 0.85);
+      outline-offset: -2px;
+      position: relative;
+      z-index: 2;
+    }
+    .board-head .risk-bet-amt {
+      display: block;
+      font-size: 0.5rem;
+      color: #fff;
+      background: rgba(120, 40, 0, 0.85);
+      border-radius: 3px;
+      margin-top: 1px;
+      line-height: 1.2;
+      padding: 0 1px;
+      font-weight: 800;
+    }
+    .cell.risk-bet-cell {
+      box-shadow: inset 0 0 0 2px #ff6b00, 0 0 8px rgba(255, 140, 0, 0.65);
+      outline: 1px solid #ffd27a;
+      position: relative;
+      z-index: 2;
+    }
+    .cell.risk-bet-cell::after {
+      content: attr(data-risk);
+      position: absolute;
+      left: 50%; bottom: 1px;
+      transform: translateX(-50%);
+      font-size: 0.45rem;
+      font-weight: 800;
+      color: #fff;
+      background: rgba(180, 60, 0, 0.9);
+      border-radius: 2px;
+      padding: 0 2px;
+      white-space: nowrap;
+      pointer-events: none;
+    }
     .board-head {
       font-size: 0.55rem; text-align: center; font-weight: 700;
       padding: 2px 0 4px; line-height: 1.15;
@@ -812,7 +850,82 @@
     }
     .modal-mask.show { display: flex; }
     .modal-mask .modal-box,
-    .modal-mask .modal {
+    .modal-mask .risk-win-overlay {
+      position: fixed; inset: 0; z-index: 400;
+      display: none; align-items: center; justify-content: center;
+      background: radial-gradient(circle at center, rgba(80,40,0,0.55), rgba(0,0,0,0.72));
+      animation: riskWinFade 0.35s ease;
+    }
+    .risk-win-overlay.show { display: flex; }
+    @keyframes riskWinFade { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes riskWinPop {
+      0% { transform: scale(0.7) rotate(-3deg); opacity: 0; }
+      60% { transform: scale(1.06) rotate(1deg); }
+      100% { transform: scale(1) rotate(0); opacity: 1; }
+    }
+    @keyframes riskWinShine {
+      0% { filter: brightness(1); }
+      50% { filter: brightness(1.25); }
+      100% { filter: brightness(1); }
+    }
+    .risk-win-card {
+      max-width: min(440px, 92vw);
+      padding: 22px 22px 16px;
+      border-radius: 18px;
+      border: 3px solid #ffd700;
+      background: linear-gradient(160deg, #3d2a08 0%, #1a1206 40%, #4a3000 100%);
+      box-shadow: 0 0 0 4px rgba(255,200,50,0.25), 0 16px 40px rgba(0,0,0,0.5), 0 0 40px rgba(255,180,0,0.35);
+      text-align: center;
+      animation: riskWinPop 0.45s cubic-bezier(0.22,1,0.36,1);
+      color: #ffe9a8;
+    }
+    .risk-win-spark {
+      font-size: 1.05rem; font-weight: 900; letter-spacing: 0.06em;
+      color: #ffe566;
+      text-shadow: 0 0 12px rgba(255,220,80,0.9);
+      animation: riskWinShine 1.2s ease-in-out infinite;
+      margin-bottom: 8px;
+    }
+    .risk-win-title {
+      font-size: 1.45rem; font-weight: 900; color: #ffd700;
+      text-shadow: 0 2px 0 #8a5a00, 0 0 18px rgba(255,200,0,0.5);
+      margin-bottom: 12px;
+    }
+    .risk-win-body {
+      font-size: 1rem; line-height: 1.55;
+      color: #fff6d6;
+      margin-bottom: 10px;
+    }
+    .risk-win-body .rw-name { color: #7dcea0; font-weight: 800; }
+    .risk-win-body .rw-amt {
+      display: inline-block; margin-top: 4px;
+      font-size: 1.35rem; font-weight: 900; color: #ffe566;
+      text-shadow: 0 0 10px rgba(255,220,80,0.7);
+    }
+    .risk-win-footer { font-size: 0.75rem; color: #c9a878; margin-top: 6px; }
+    .risk-mode-row { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+    .risk-mode-row button { flex:1; min-width:120px; padding:14px; font-weight:800; border-radius:12px; }
+    .risk-zone-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .risk-zone-btn {
+      padding:18px 12px; border-radius:14px; border:2px solid #c9a227; font-weight:900; font-size:1.05rem;
+      cursor:pointer; color:#1a120b; min-height:72px;
+    }
+    .risk-zone-btn.green { background: linear-gradient(180deg,#7dcea0,#3d8a64); }
+    .risk-zone-btn.yellow { background: linear-gradient(180deg,#f7d774,#c9a227); }
+    .risk-zone-btn.red { background: linear-gradient(180deg,#f5a3a3,#c0392b); color:#fff; }
+    .risk-zone-btn.blue { background: linear-gradient(180deg,#7eb6ff,#2c5aa0); color:#fff; }
+    .risk-cell-good { margin:10px 0; padding:10px; border:1px solid rgba(201,162,39,0.4); border-radius:12px; background:rgba(255,255,255,0.35); }
+    .risk-cell-grid { display:flex; flex-wrap:wrap; gap:6px; max-height:180px; overflow-y:auto; }
+    .risk-cell-btn {
+      width:42px; height:42px; border-radius:8px; border:1px solid #c9a227; background:#fffef8;
+      font-size:0.65rem; font-weight:700; cursor:pointer; padding:0;
+    }
+    .risk-cell-btn.taken { opacity:0.4; cursor:not-allowed; }
+    .risk-cell-btn.green { background:#c6efd9; }
+    .risk-cell-btn.yellow { background:#f7e7a8; }
+    .risk-cell-btn.red { background:#f5c6c6; }
+    .risk-cell-btn.blue { background:#c5dbff; }
+    .modal {
       max-height: min(85vh, 640px);
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
@@ -822,12 +935,162 @@
     #politicianModal .modal-box,
     #privilegeModal .modal,
     #gangsterModal .modal,
-    #politicianModal .modal {
+    #politicianModal .risk-win-overlay {
+      position: fixed; inset: 0; z-index: 400;
+      display: none; align-items: center; justify-content: center;
+      background: radial-gradient(circle at center, rgba(80,40,0,0.55), rgba(0,0,0,0.72));
+      animation: riskWinFade 0.35s ease;
+    }
+    .risk-win-overlay.show { display: flex; }
+    @keyframes riskWinFade { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes riskWinPop {
+      0% { transform: scale(0.7) rotate(-3deg); opacity: 0; }
+      60% { transform: scale(1.06) rotate(1deg); }
+      100% { transform: scale(1) rotate(0); opacity: 1; }
+    }
+    @keyframes riskWinShine {
+      0% { filter: brightness(1); }
+      50% { filter: brightness(1.25); }
+      100% { filter: brightness(1); }
+    }
+    .risk-win-card {
+      max-width: min(440px, 92vw);
+      padding: 22px 22px 16px;
+      border-radius: 18px;
+      border: 3px solid #ffd700;
+      background: linear-gradient(160deg, #3d2a08 0%, #1a1206 40%, #4a3000 100%);
+      box-shadow: 0 0 0 4px rgba(255,200,50,0.25), 0 16px 40px rgba(0,0,0,0.5), 0 0 40px rgba(255,180,0,0.35);
+      text-align: center;
+      animation: riskWinPop 0.45s cubic-bezier(0.22,1,0.36,1);
+      color: #ffe9a8;
+    }
+    .risk-win-spark {
+      font-size: 1.05rem; font-weight: 900; letter-spacing: 0.06em;
+      color: #ffe566;
+      text-shadow: 0 0 12px rgba(255,220,80,0.9);
+      animation: riskWinShine 1.2s ease-in-out infinite;
+      margin-bottom: 8px;
+    }
+    .risk-win-title {
+      font-size: 1.45rem; font-weight: 900; color: #ffd700;
+      text-shadow: 0 2px 0 #8a5a00, 0 0 18px rgba(255,200,0,0.5);
+      margin-bottom: 12px;
+    }
+    .risk-win-body {
+      font-size: 1rem; line-height: 1.55;
+      color: #fff6d6;
+      margin-bottom: 10px;
+    }
+    .risk-win-body .rw-name { color: #7dcea0; font-weight: 800; }
+    .risk-win-body .rw-amt {
+      display: inline-block; margin-top: 4px;
+      font-size: 1.35rem; font-weight: 900; color: #ffe566;
+      text-shadow: 0 0 10px rgba(255,220,80,0.7);
+    }
+    .risk-win-footer { font-size: 0.75rem; color: #c9a878; margin-top: 6px; }
+    .risk-mode-row { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+    .risk-mode-row button { flex:1; min-width:120px; padding:14px; font-weight:800; border-radius:12px; }
+    .risk-zone-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .risk-zone-btn {
+      padding:18px 12px; border-radius:14px; border:2px solid #c9a227; font-weight:900; font-size:1.05rem;
+      cursor:pointer; color:#1a120b; min-height:72px;
+    }
+    .risk-zone-btn.green { background: linear-gradient(180deg,#7dcea0,#3d8a64); }
+    .risk-zone-btn.yellow { background: linear-gradient(180deg,#f7d774,#c9a227); }
+    .risk-zone-btn.red { background: linear-gradient(180deg,#f5a3a3,#c0392b); color:#fff; }
+    .risk-zone-btn.blue { background: linear-gradient(180deg,#7eb6ff,#2c5aa0); color:#fff; }
+    .risk-cell-good { margin:10px 0; padding:10px; border:1px solid rgba(201,162,39,0.4); border-radius:12px; background:rgba(255,255,255,0.35); }
+    .risk-cell-grid { display:flex; flex-wrap:wrap; gap:6px; max-height:180px; overflow-y:auto; }
+    .risk-cell-btn {
+      width:42px; height:42px; border-radius:8px; border:1px solid #c9a227; background:#fffef8;
+      font-size:0.65rem; font-weight:700; cursor:pointer; padding:0;
+    }
+    .risk-cell-btn.taken { opacity:0.4; cursor:not-allowed; }
+    .risk-cell-btn.green { background:#c6efd9; }
+    .risk-cell-btn.yellow { background:#f7e7a8; }
+    .risk-cell-btn.red { background:#f5c6c6; }
+    .risk-cell-btn.blue { background:#c5dbff; }
+    .modal {
       max-height: min(80vh, 560px);
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
       padding-bottom: 24px;
     }
+    .risk-win-overlay {
+      position: fixed; inset: 0; z-index: 400;
+      display: none; align-items: center; justify-content: center;
+      background: radial-gradient(circle at center, rgba(80,40,0,0.55), rgba(0,0,0,0.72));
+      animation: riskWinFade 0.35s ease;
+    }
+    .risk-win-overlay.show { display: flex; }
+    @keyframes riskWinFade { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes riskWinPop {
+      0% { transform: scale(0.7) rotate(-3deg); opacity: 0; }
+      60% { transform: scale(1.06) rotate(1deg); }
+      100% { transform: scale(1) rotate(0); opacity: 1; }
+    }
+    @keyframes riskWinShine {
+      0% { filter: brightness(1); }
+      50% { filter: brightness(1.25); }
+      100% { filter: brightness(1); }
+    }
+    .risk-win-card {
+      max-width: min(440px, 92vw);
+      padding: 22px 22px 16px;
+      border-radius: 18px;
+      border: 3px solid #ffd700;
+      background: linear-gradient(160deg, #3d2a08 0%, #1a1206 40%, #4a3000 100%);
+      box-shadow: 0 0 0 4px rgba(255,200,50,0.25), 0 16px 40px rgba(0,0,0,0.5), 0 0 40px rgba(255,180,0,0.35);
+      text-align: center;
+      animation: riskWinPop 0.45s cubic-bezier(0.22,1,0.36,1);
+      color: #ffe9a8;
+    }
+    .risk-win-spark {
+      font-size: 1.05rem; font-weight: 900; letter-spacing: 0.06em;
+      color: #ffe566;
+      text-shadow: 0 0 12px rgba(255,220,80,0.9);
+      animation: riskWinShine 1.2s ease-in-out infinite;
+      margin-bottom: 8px;
+    }
+    .risk-win-title {
+      font-size: 1.45rem; font-weight: 900; color: #ffd700;
+      text-shadow: 0 2px 0 #8a5a00, 0 0 18px rgba(255,200,0,0.5);
+      margin-bottom: 12px;
+    }
+    .risk-win-body {
+      font-size: 1rem; line-height: 1.55;
+      color: #fff6d6;
+      margin-bottom: 10px;
+    }
+    .risk-win-body .rw-name { color: #7dcea0; font-weight: 800; }
+    .risk-win-body .rw-amt {
+      display: inline-block; margin-top: 4px;
+      font-size: 1.35rem; font-weight: 900; color: #ffe566;
+      text-shadow: 0 0 10px rgba(255,220,80,0.7);
+    }
+    .risk-win-footer { font-size: 0.75rem; color: #c9a878; margin-top: 6px; }
+    .risk-mode-row { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+    .risk-mode-row button { flex:1; min-width:120px; padding:14px; font-weight:800; border-radius:12px; }
+    .risk-zone-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .risk-zone-btn {
+      padding:18px 12px; border-radius:14px; border:2px solid #c9a227; font-weight:900; font-size:1.05rem;
+      cursor:pointer; color:#1a120b; min-height:72px;
+    }
+    .risk-zone-btn.green { background: linear-gradient(180deg,#7dcea0,#3d8a64); }
+    .risk-zone-btn.yellow { background: linear-gradient(180deg,#f7d774,#c9a227); }
+    .risk-zone-btn.red { background: linear-gradient(180deg,#f5a3a3,#c0392b); color:#fff; }
+    .risk-zone-btn.blue { background: linear-gradient(180deg,#7eb6ff,#2c5aa0); color:#fff; }
+    .risk-cell-good { margin:10px 0; padding:10px; border:1px solid rgba(201,162,39,0.4); border-radius:12px; background:rgba(255,255,255,0.35); }
+    .risk-cell-grid { display:flex; flex-wrap:wrap; gap:6px; max-height:180px; overflow-y:auto; }
+    .risk-cell-btn {
+      width:42px; height:42px; border-radius:8px; border:1px solid #c9a227; background:#fffef8;
+      font-size:0.65rem; font-weight:700; cursor:pointer; padding:0;
+    }
+    .risk-cell-btn.taken { opacity:0.4; cursor:not-allowed; }
+    .risk-cell-btn.green { background:#c6efd9; }
+    .risk-cell-btn.yellow { background:#f7e7a8; }
+    .risk-cell-btn.red { background:#f5c6c6; }
+    .risk-cell-btn.blue { background:#c5dbff; }
     .modal {
       background: var(--parchment); color: var(--ink);
       border: 3px solid var(--gold); border-radius: 8px;
@@ -1055,7 +1318,42 @@
 </head>
 <body>
   <div class="toast" id="toast"></div>
-  <div class="modal-mask" id="merchantModal">
+  
+  <div class="risk-win-overlay" id="riskWinOverlay" onclick="hideRiskWinOverlay()">
+    <div class="risk-win-card" onclick="event.stopPropagation()">
+      <div class="risk-win-spark">✨ 7️⃣ 幸運降臨 7️⃣ ✨</div>
+      <div class="risk-win-title" id="riskWinTitle">投資風險家中獎</div>
+      <div class="risk-win-body" id="riskWinBody"></div>
+      <div class="risk-win-footer">點擊任意處關閉</div>
+    </div>
+  </div>
+  <div class="modal-mask" id="riskInvestorModal">
+    <div class="modal risk-modal" style="max-width:min(560px,96vw);max-height:min(88vh,720px);overflow-y:auto;">
+      <h3>7️⃣ 投資風險家</h3>
+      <p id="riskModalHint" style="font-size:0.85rem;color:#5a3a22;margin:0 0 10px;">僅在買貨階段且輪到你時可下注。</p>
+      <div id="riskModalBody"></div>
+      <div class="modal-actions" style="margin-top:12px;">
+        <button class="btn-navy" type="button" onclick="closeModals()">關閉</button>
+      </div>
+    </div>
+  </div>
+  <div class="modal-mask" id="riskQtyModal">
+    <div class="modal" style="max-width:min(380px,94vw);">
+      <h3 id="riskQtyTitle">確認下注</h3>
+      <p id="riskQtyDesc" style="font-size:0.9rem;color:#5a3a22;"></p>
+      <div style="display:flex;align-items:center;gap:10px;justify-content:center;margin:14px 0;">
+        <button type="button" class="btn-navy" style="width:44px;padding:10px;" onclick="riskQtyAdj(-1)">−</button>
+        <input id="riskQtyInput" type="number" min="1" max="99" value="1" style="width:88px;text-align:center;font-size:1.2rem;font-weight:800;padding:10px;border:2px solid #c9a227;border-radius:10px;background:#fffef8;" oninput="riskQtySync()" />
+        <button type="button" class="btn-navy" style="width:44px;padding:10px;" onclick="riskQtyAdj(1)">＋</button>
+      </div>
+      <div style="text-align:center;font-size:1rem;margin-bottom:10px;">合計金額：<strong id="riskQtyTotal" style="color:#8a6e16;">0</strong> 元</div>
+      <div class="modal-actions">
+        <button class="btn-gold" type="button" onclick="confirmRiskBet()">確定下注</button>
+        <button class="btn-navy" type="button" onclick="document.getElementById('riskQtyModal').classList.remove('show')">取消</button>
+      </div>
+    </div>
+  </div>
+<div class="modal-mask" id="merchantModal">
     <div class="modal" id="merchantModalBox" style="max-width:420px;">
       <h3 id="merchantModalTitle">商人</h3>
       <div id="merchantModalBody" style="max-height:60vh;overflow:auto;"></div>
@@ -1616,6 +1914,7 @@
       if (!g) return;
       const idx = Math.floor(Math.random() * TANGA_GRID.length);
       g.price = TANGA_GRID[idx];
+      // 特殊貨暫不納入投資風險家結算
     }
     // 原始設計：±8±6±4±2，每貨每點 2 張 → 6×8×2 = 96
     const CARD_VALUES = [8, 6, 4, 2, -2, -4, -6, -8];
@@ -1691,10 +1990,10 @@
         id: 'risk_investor',
         icon: '7️⃣7️⃣7️⃣',
         title: '投資風險家',
-        desc: '敬請期待',
-        cost: 0,
-        sellPrice: 0,
-        comingSoon: true
+        desc: '3000 就任／賣 2000。場上最多 2 人。買貨自身回合可賭區域(300→777)或格子(200→3333)。特殊貨敬請期待',
+        cost: 3000,
+        sellPrice: 2000,
+        maxHolders: 2
       }
     ];
     function ensureJobs(player) {
@@ -1862,7 +2161,10 @@
       return room.players.find(pl => hasJob(pl, 'rights_master')) || null;
     }
     function isJobTaken(jobId, exceptPlayerId) {
-      return room.players.some(pl => hasJob(pl, jobId) && pl.id !== exceptPlayerId);
+      const job = JOBS.find(j => j.id === jobId);
+      const maxH = (job && job.maxHolders) ? job.maxHolders : 1;
+      const n = room.players.filter(pl => hasJob(pl, jobId) && (exceptPlayerId == null || pl.id !== exceptPlayerId)).length;
+      return n >= maxH;
     }
     // 單獨物權總價值（持有的物權：各貨物現價×10）
     function rightsAssetValue(playerId) {
@@ -3139,6 +3441,7 @@
       if (hasJob(p, 'privileged')) jobBtns += `<button class="btn-navy" onclick="openPrivilegePanel()">💀特權</button>`;
       if (hasJob(p, 'gangster')) jobBtns += `<button class="btn-navy" onclick="openGangsterPanel()">💩黑幫</button>`;
       if (hasJob(p, 'politician')) jobBtns += `<button class="btn-navy" onclick="openPoliticianPanel()">😎政治</button>`;
+      if (hasJob(p, 'risk_investor')) jobBtns += `<button class="btn-gold" onclick="openRiskInvestorPanel()">7️⃣風險</button>`;
       if (phase === 'fluctuate') {
         if (hasPlayedThisPhase) {
           bar.innerHTML = `
@@ -3345,6 +3648,26 @@
         if (z !== prevZ) { zoneStarts.add(i); prevZ = z; }
       }
 
+      // 僅本機可見的投資風險家下注標記
+      const riskZonePending = {}; // zone -> remaining bets
+      const riskCellPending = {}; // goodId_grid -> true
+      try {
+        const meP = me();
+        if (meP && hasJob(meP, 'risk_investor')) {
+          ensureRiskState(meP);
+          (meP.riskZoneBets || []).forEach(function(b) {
+            const left = (b.times || 0) - (b.resolvedTimes || 0);
+            if (left > 0) riskZonePending[b.zone] = left;
+          });
+          Object.keys(meP.riskCellBets || {}).forEach(function(k) {
+            const b = meP.riskCellBets[k];
+            if (!b) return;
+            const left = (b.times != null) ? ((b.times || 0) - (b.resolvedTimes || 0)) : (b.resolved ? 0 : 1);
+            if (left > 0) riskCellPending[k] = left;
+          });
+        }
+      } catch (e) {}
+
       let html = '';
       html += `<div class="board-label">格價</div>`;
       for (let i = 0; i <= GRID_MAX; i++) {
@@ -3352,7 +3675,10 @@
         const z = zoneOfPrice(pv);
         const hc = z === 'green' ? 'hg' : z === 'yellow' ? 'hy' : z === 'blue' ? 'hb' : 'hr';
         const edge = zoneStarts.has(i) ? ' zone-edge-left' : '';
-        html += `<div class="board-head ${hc}${edge}">${pv}</div>`;
+        const zoneBet = riskZonePending[z] || 0;
+        const riskCls = zoneBet > 0 ? ' risk-bet-zone' : '';
+        const riskLabel = zoneBet > 0 ? `<span class="risk-bet-amt">×${zoneBet}</span>` : '';
+        html += `<div class="board-head ${hc}${edge}${riskCls}" title="${zoneBet > 0 ? ('你的區域注 ×' + zoneBet) : ''}">${pv}${riskLabel}</div>`;
       }
 
       NORMAL_GOODS().forEach(g => {
@@ -3367,11 +3693,16 @@
           else cls += ' dim-' + z;
           if (i === pos) cls += ' current';
           if (zoneStarts.has(i)) cls += ' zone-edge-left';
+          const cellKey = g.id + '_' + i;
+          const cellBetN = riskCellPending[cellKey] || 0;
+          if (cellBetN > 0) cls += ' risk-bet-cell';
           let label = '';
           if (i === pos) label = g.price;
           else if (i === 0 || i === pos - 1 || zoneStarts.has(i) || i === GRID_MAX) label = cellPrice;
           else if (i <= pos && i % 5 === 0) label = cellPrice;
-          html += `<div class="${cls}" title="${g.name} · ${cellPrice}">${label}</div>`;
+          const title = cellBetN > 0 ? (g.name + ' · ' + cellPrice + ' · 你的格子注×' + cellBetN) : (g.name + ' · ' + cellPrice);
+          const dataRisk = cellBetN > 0 ? (' data-risk="×' + cellBetN + '"') : '';
+          html += `<div class="${cls}"${dataRisk} title="${title}">${label}</div>`;
         }
       });
       document.getElementById('chessBoard').innerHTML = html;
@@ -4122,6 +4453,7 @@
       // 私有牌可一併打出（算在這一次下手裡）
       const privCards = [];
       priv.forEach(s => { if (p.privateCards[s.index]) { applyCard(p.privateCards[s.index]); privCards.push(p.privateCards[s.index]); } });
+      // 投資風險家改為全員出完牌後統一結算
 
       // 打出後回收進牌庫
       returnCardToDeck(c1);
@@ -4533,6 +4865,8 @@
         hasPlayedThisPhase = false;
         selectedCards = [];
         if (allPhaseDone()) {
+          // 全員波動出牌結束 → 結算投資風險家（命中派彩，未命中注銷）
+          // 投資風險家結算改在進入喊價前（有中獎則先播報）
           // 新回合買貨
           room.players.forEach(pl => {
             if ((pl.debtAnchor || 0) > 0 || (pl.debt || 0) > 0) {
@@ -4559,14 +4893,23 @@
           randomizeTangaPrice();
           showToast('TANGA 本回合跳價：' + (GOODS.find(g=>g.id==='tanga')||{}).price, 'success');
           resetRightsFees();
-          showToast(`波動結束 → 第 ${round} 回合：先買順序（喊價）`, 'success');
-          if (isOnlineMode() && window.GameNet) {
-            try {
-              GameNet.sendEvent('start_bid_round', { round: round, phase: 'bid' });
-              GameNet.sendEvent('phase_advance', { phase: 'bid', round: round, currentTurnId: null, turnOrder: turnOrder.map(Number), phaseDoneIds: {} });
-            } catch (e) {}
+          const riskWinners = (function(){ try { return settleRiskBets() || []; } catch(e) { return []; } })();
+          const startBidAfterRisk = function() {
+            showToast('第 ' + round + ' 回合：先買順序（喊價）', 'success');
+            if (isOnlineMode() && window.GameNet) {
+              try {
+                GameNet.sendEvent('start_bid_round', { round: round, phase: 'bid' });
+                GameNet.sendEvent('phase_advance', { phase: 'bid', round: round, currentTurnId: null, turnOrder: turnOrder.map(Number), phaseDoneIds: {} });
+              } catch (e) {}
+            }
+            openBidRound();
+          };
+          if (riskWinners && riskWinners.length) {
+            // 先展示中獎，關閉／逾時後再喊價
+            window._pendingAfterRiskWin = startBidAfterRisk;
+          } else {
+            startBidAfterRisk();
           }
-          openBidRound();
         } else {
           let cur = nextTurnAfter(myId);
           let guard = 0;
@@ -4822,7 +5165,262 @@
       render();
       if (typeof syncPush === 'function') syncPush();
     }
-    function openGangsterPanel() {
+    
+    function ensureRiskState(pl) {
+      if (!pl) return pl;
+      if (!pl.riskZoneBets) pl.riskZoneBets = [];
+      if (!pl.riskCellBets) pl.riskCellBets = {};
+      return pl;
+    }
+    function canRiskBetNow() {
+      if (phase !== 'buy') return false;
+      if (typeof isMyTurn === 'function' && !isMyTurn()) return false;
+      const p = me();
+      return !!(p && hasJob(p, 'risk_investor'));
+    }
+    function openRiskInvestorPanel() {
+      const p = me();
+      if (!p || !hasJob(p, 'risk_investor')) { showToast('你不是投資風險家', 'error'); return; }
+      ensureRiskState(p);
+      const body = document.getElementById('riskModalBody');
+      const hint = document.getElementById('riskModalHint');
+      if (hint) {
+        hint.textContent = canRiskBetNow()
+          ? '買貨自身回合可下注。區域每注300→命中777；格子每注200→命中3333。特殊貨物敬請期待。'
+          : '目前無法下注（需買貨階段且輪到你）。可查看已下之注。';
+      }
+      if (body) {
+        body.innerHTML = '<div class="risk-mode-row">'
+          + '<button type="button" class="btn-gold" onclick="renderRiskZoneMode()">賭區域（300／注）</button>'
+          + '<button type="button" class="btn-navy" onclick="renderRiskCellMode()">賭格子（200／注）</button>'
+          + '<button type="button" class="btn-red" onclick="showToast(\'特殊貨物下注：敬請期待\',\'error\')">特殊貨物（敬請期待）</button>'
+          + '</div><div id="riskModeContent"></div>'
+          + '<div style="margin-top:12px;font-size:0.8rem;color:#5a3a22;line-height:1.45;" id="riskBetSummary"></div>';
+      }
+      renderRiskBetSummary();
+      const mask = document.getElementById('riskInvestorModal');
+      if (mask) mask.classList.add('show');
+    }
+    function renderRiskBetSummary() {
+      const el = document.getElementById('riskBetSummary');
+      if (!el) return;
+      const p = me();
+      ensureRiskState(p);
+      const zones = (p.riskZoneBets || []).map(function(b) {
+        const left = (b.times || 0) - (b.resolvedTimes || 0);
+        return left > 0 ? (b.zone + '×' + left) : null;
+      }).filter(Boolean).join('、') || '無';
+      const cells = Object.keys(p.riskCellBets || {}).filter(function(k) { return !p.riskCellBets[k].resolved; });
+      el.innerHTML = '<strong>未結算區域注：</strong>' + zones + '<br><strong>未結算格子注：</strong>' + (cells.length ? (cells.length + ' 格') : '無');
+    }
+    function renderRiskZoneMode() {
+      const box = document.getElementById('riskModeContent');
+      if (!box) return;
+      const zones = [
+        { id: 'green', name: '綠區', range: '0～150' },
+        { id: 'yellow', name: '黃區', range: '151～300' },
+        { id: 'red', name: '紅區', range: '301～420' },
+        { id: 'blue', name: '藍區', range: '421～500' }
+      ];
+      box.innerHTML = '<div style="font-weight:800;margin-bottom:8px;">選擇顏色區域（一般貨物）</div><div class="risk-zone-grid">'
+        + zones.map(function(z) {
+            return '<button type="button" class="risk-zone-btn ' + z.id + '" onclick="startRiskZoneBet(\'' + z.id + '\',\'' + z.name + '\')">'
+              + z.name + '<br><span style="font-size:0.75rem;font-weight:600;">' + z.range + '</span></button>';
+          }).join('')
+        + '</div><p style="font-size:0.78rem;color:#5a3a22;margin-top:8px;">全員出完牌後結算：若有一般貨在該區則每注得777；未命中則清除。同區可重複下注。</p>';
+    }
+    function renderRiskCellMode() {
+      const box = document.getElementById('riskModeContent');
+      if (!box) return;
+      const p = me();
+      ensureRiskState(p);
+      let html = '<div style="font-weight:800;margin-bottom:8px;">選擇貨物與格子（每格限一次）</div>';
+      NORMAL_GOODS().forEach(function(g) {
+        const gi = priceToGrid(g.price);
+        html += '<div class="risk-cell-good"><div style="font-weight:800;margin-bottom:6px;">' + g.icon + ' ' + g.name
+          + ' <span style="font-size:0.75rem;color:#5a3a22;">現價 ' + g.price + '（格 ' + gi + '）</span></div><div class="risk-cell-grid">';
+        for (let i = 0; i <= GRID_MAX; i++) {
+          const key = g.id + '_' + i;
+          const taken = !!p.riskCellBets[key];
+          const z = zoneOfPrice(GRID_PRICES[i]);
+          const cls = 'risk-cell-btn ' + z + (taken ? ' taken' : '');
+          if (taken) html += '<button type="button" class="' + cls + '" disabled>' + GRID_PRICES[i] + '</button>';
+          else html += '<button type="button" class="' + cls + '" onclick="startRiskCellBet(\'' + g.id + '\',' + i + ')">' + GRID_PRICES[i] + '</button>';
+        }
+        html += '</div></div>';
+      });
+      html += '<p style="font-size:0.78rem;color:#5a3a22;">全員出完牌後結算：若該貨在所選格則每注得3333；未命中則清除。可重複加注。不含特殊貨物。</p>';
+      box.innerHTML = html;
+    }
+    window._riskPending = null;
+    function startRiskZoneBet(zoneId, zoneName) {
+      if (!canRiskBetNow()) { showToast('僅在買貨階段且輪到你時可下注', 'error'); return; }
+      window._riskPending = { type: 'zone', zone: zoneId, name: zoneName, unit: 300 };
+      document.getElementById('riskQtyTitle').textContent = '賭區域：' + zoneName;
+      document.getElementById('riskQtyDesc').textContent = '每注300元，該區任一一般貨物到達可得777／注。';
+      const inp = document.getElementById('riskQtyInput');
+      inp.value = 1; inp.min = 1; inp.max = 50;
+      riskQtySync();
+      document.getElementById('riskQtyModal').classList.add('show');
+    }
+    function startRiskCellBet(goodId, grid) {
+      if (!canRiskBetNow()) { showToast('僅在買貨階段且輪到你時可下注', 'error'); return; }
+      const p = me();
+      ensureRiskState(p);
+      const key = goodId + '_' + grid;
+      const g = GOODS.find(function(x) { return x.id === goodId; });
+      const already = p.riskCellBets[key];
+      const have = already ? ((already.times || 0) - (already.resolvedTimes || 0)) : 0;
+      window._riskPending = { type: 'cell', goodId: goodId, grid: grid, key: key, name: (g ? g.name : goodId) + ' 格' + grid + '（' + GRID_PRICES[grid] + '）', unit: 200 };
+      document.getElementById('riskQtyTitle').textContent = '賭格子';
+      document.getElementById('riskQtyDesc').textContent = window._riskPending.name + ' · 每注200元，全員出完牌後若到達得3333／注（可重複加注，目前×' + have + '）。';
+      const inp = document.getElementById('riskQtyInput');
+      inp.value = 1; inp.min = 1; inp.max = 50;
+      riskQtySync();
+      document.getElementById('riskQtyModal').classList.add('show');
+    }
+    function riskQtyAdj(d) {
+      const inp = document.getElementById('riskQtyInput');
+      if (!inp) return;
+      let v = parseInt(inp.value, 10) || 1;
+      const max = parseInt(inp.max, 10) || 99;
+      v = Math.max(1, Math.min(max, v + d));
+      inp.value = v;
+      riskQtySync();
+    }
+    function riskQtySync() {
+      const inp = document.getElementById('riskQtyInput');
+      const totalEl = document.getElementById('riskQtyTotal');
+      const pend = window._riskPending;
+      if (!inp || !totalEl || !pend) return;
+      let v = parseInt(inp.value, 10);
+      if (isNaN(v) || v < 1) v = 1;
+      const max = parseInt(inp.max, 10) || 99;
+      if (v > max) v = max;
+      inp.value = v;
+      totalEl.textContent = String(v * pend.unit);
+    }
+    function confirmRiskBet() {
+      const pend = window._riskPending;
+      if (!pend) return;
+      if (!canRiskBetNow()) { showToast('僅在買貨階段且輪到你時可下注', 'error'); return; }
+      const p = me();
+      ensureRiskState(p);
+      riskQtySync();
+      const times = parseInt(document.getElementById('riskQtyInput').value, 10) || 1;
+      const cost = times * pend.unit;
+      if (p.cash < cost) { showToast('現金不足（需 ' + cost + '）', 'error'); return; }
+      if (pend.type === 'zone') {
+        p.cash -= cost;
+        bankFunds += cost;
+        let bet = (p.riskZoneBets || []).find(function(b) { return b.zone === pend.zone; });
+        if (!bet) { bet = { zone: pend.zone, times: 0, resolvedTimes: 0 }; p.riskZoneBets.push(bet); }
+        bet.times = (bet.times || 0) + times;
+        showToast('已賭 ' + pend.name + ' ×' + times + '（-' + cost + '）', 'success');
+      } else if (pend.type === 'cell') {
+        p.cash -= cost;
+        bankFunds += cost;
+        let cb = p.riskCellBets[pend.key];
+        if (!cb) {
+          cb = { goodId: pend.goodId, grid: pend.grid, times: 0, resolvedTimes: 0, resolved: false };
+          p.riskCellBets[pend.key] = cb;
+        }
+        cb.times = (cb.times || 0) + times;
+        cb.resolved = false;
+        showToast('已賭格子 ' + pend.name + ' ×' + times + '（-' + cost + '）', 'success');
+      }
+      document.getElementById('riskQtyModal').classList.remove('show');
+      window._riskPending = null;
+      try { renderRiskBetSummary(); if (pend.type === 'cell') renderRiskCellMode(); } catch (e) {}
+      render();
+      if (typeof syncPush === 'function') syncPush();
+    }
+    function settleRiskBets() {
+      // 全員出完牌後結算：命中派彩；未命中清除；中獎全場通知
+      const winners = [];
+      (room.players || []).forEach(function(pl) {
+        if (!hasJob(pl, 'risk_investor')) return;
+        ensureRiskState(pl);
+        let gainTotal = 0;
+        let cleared = 0;
+        const parts = [];
+        (pl.riskZoneBets || []).forEach(function(bet) {
+          const pending = (bet.times || 0) - (bet.resolvedTimes || 0);
+          if (pending <= 0) return;
+          const hit = NORMAL_GOODS().some(function(g) { return zoneOfPrice(g.price) === bet.zone; });
+          if (hit) {
+            const gain = pending * 777;
+            gainTotal += gain;
+            pl.cash += gain;
+            bankFunds -= gain;
+            parts.push(bet.zone + '區×' + pending);
+          } else {
+            cleared += pending;
+          }
+        });
+        pl.riskZoneBets = [];
+        Object.keys(pl.riskCellBets || {}).forEach(function(key) {
+          const b = pl.riskCellBets[key];
+          if (!b) return;
+          const pending = (b.times != null) ? ((b.times || 0) - (b.resolvedTimes || 0)) : (b.resolved ? 0 : 1);
+          if (pending <= 0) return;
+          const g = GOODS.find(function(x) { return x.id === b.goodId; });
+          if (g && !g.special && priceToGrid(g.price) === b.grid) {
+            const gain = pending * 3333;
+            gainTotal += gain;
+            pl.cash += gain;
+            bankFunds -= gain;
+            parts.push((g.name || b.goodId) + '格' + b.grid + '×' + pending);
+          } else {
+            cleared += pending;
+          }
+        });
+        pl.riskCellBets = {};
+        if (gainTotal > 0) {
+          winners.push({ id: pl.id, name: pl.name || ('玩家' + pl.id), gain: gainTotal, parts: parts });
+        } else if (cleared > 0 && sameId(pl.id, myId)) {
+          try { showSideNotice('7️⃣ 投資風險家', '未命中，本輪下注已重置'); } catch (e) {}
+          showToast('投資風險家：未命中，下注已重置', 'error');
+        }
+      });
+      if (winners.length) {
+        showRiskWinOverlay(winners);
+        if (isOnlineMode() && window.GameNet) {
+          try { GameNet.sendEvent('risk_win', { winners: winners, ts: Date.now() }); } catch (e) {}
+        }
+      }
+      return winners;
+    }
+    function showRiskWinOverlay(winners) {
+      if (!winners || !winners.length) return;
+      const ov = document.getElementById('riskWinOverlay');
+      const title = document.getElementById('riskWinTitle');
+      const body = document.getElementById('riskWinBody');
+      if (!ov || !body) return;
+      if (title) title.textContent = winners.length > 1 ? '多位幸運兒中獎！' : '幸運降臨！';
+      body.innerHTML = winners.map(function(w) {
+        return '<div style="margin:10px 0;padding:10px;border-radius:12px;background:rgba(255,215,0,0.08);border:1px solid rgba(255,215,0,0.35);">'
+          + '<div class="rw-name">🎉 ' + (w.name || '玩家') + '</div>'
+          + '<div class="rw-amt">+' + w.gain + ' 元</div>'
+          + (w.parts && w.parts.length ? ('<div style="font-size:0.8rem;color:#e8d5a0;margin-top:4px;">' + w.parts.join(' · ') + '</div>') : '')
+          + '</div>';
+      }).join('');
+      ov.classList.add('show');
+      clearTimeout(window._riskWinHideT);
+      window._riskWinHideT = setTimeout(function() { hideRiskWinOverlay(); }, 5200);
+    }
+    function hideRiskWinOverlay() {
+      const ov = document.getElementById('riskWinOverlay');
+      if (ov) ov.classList.remove('show');
+      const cb = window._pendingAfterRiskWin;
+      window._pendingAfterRiskWin = null;
+      if (typeof cb === 'function') {
+        try { cb(); } catch (e) { console.warn(e); }
+      }
+    }
+
+
+function openGangsterPanel() {
       const p = me();
       if (!hasJob(p, 'gangster')) { showToast('你不是黑幫', 'error'); return; }
       initJobExtraState(p);
@@ -5014,7 +5612,7 @@
       if (!job) { showToast('職業不存在', 'error'); return; }
       if (job.comingSoon) { showToast('此職業敬請期待', 'error'); return; }
       if (isJobTaken(job.id, p.id)) {
-        showToast('此職業已被選走，不可重複', 'error');
+        showToast(pendingJobId==='risk_investor'?'投資風險家最多 2 人':'此職業已被選走，不可重複', 'error');
         return;
       }
       ensureJobs(p);
@@ -5944,6 +6542,12 @@
           updateReadyCinema();
           maybeStartAfterAllReady();
         }
+        if (ev === 'risk_win' && payload && payload.winners) {
+          // 發送端已顯示；其他人先看中獎再等 start_bid
+          if (!(d.fromPlayerId != null && sameId(d.fromPlayerId, myId))) {
+            showRiskWinOverlay(payload.winners);
+          }
+        }
         if (ev === 'play_reveal' && payload) {
           showPlayReveal(payload.name, payload.cards || []);
         }
@@ -5973,8 +6577,16 @@
         }
         if (ev === 'start_bid_round') {
           if (payload && payload.round != null) round = Number(payload.round);
-          if (!bidState.active) openBidRound();
-          render();
+          const doBid = function() {
+            if (!bidState.active) openBidRound();
+            render();
+          };
+          const ov = document.getElementById('riskWinOverlay');
+          if (ov && ov.classList.contains('show')) {
+            window._pendingAfterRiskWin = doBid;
+          } else {
+            doBid();
+          }
         }
         if (ev === 'rent_request' && payload) {
           if (sameId(payload.ownerId, myId)) openRentAsk(payload);
