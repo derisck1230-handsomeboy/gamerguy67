@@ -2102,6 +2102,7 @@
           }
         }
       }
+      try { flushJobPendingImmediate(); } catch (e) {}
     }
     function tryChargeJobFee(fromPlayer, amount, reason) {
       // 黑幫可拒絕職業抽成（局限次數）
@@ -4013,6 +4014,7 @@
       }
       if (kind === 'buy') player.paidRightsBuyThisRound = true;
       if (kind === 'sell') player.paidRightsSellThisRound = true;
+      try { flushJobPendingImmediate(); } catch (e) {}
       return fee;
     }
 
@@ -4718,6 +4720,28 @@
       showToast(`已購買 ${g.name} ${pickValue > 0 ? '+' : ''}${pickValue}（${price}元，牌庫剩 ${totalDeckLeft()}）`, 'success');
     }
 
+    function isInMyActiveBuyTurn() {
+      if (phase !== 'buy') return false;
+      if (typeof isMyTurn === 'function' && !isMyTurn()) return false;
+      if (phaseDoneIds[myId] || phaseDoneIds[String(myId)]) return false;
+      return true;
+    }
+    /** 買貨且輪到自己：收成／抽成立刻入帳；否則累計到 pending，等喊價前那一波 */
+    function flushJobPendingImmediate() {
+      const p = me();
+      if (!p || !sameId(p.id, myId)) return;
+      if (!isInMyActiveBuyTurn()) return;
+      const income = pendingJobIncome || 0;
+      const fees = jobFeesPaid || 0;
+      if (income <= 0 && fees <= 0) return;
+      pendingJobIncome = 0;
+      jobFeesPaid = 0;
+      p.cash += (income - fees);
+      if (income > 0) showToast('職業收成 +' + income + '（已入帳）', 'success');
+      if (fees > 0) showToast('職業抽成 −' + fees + '（已扣除）', 'error');
+      try { render(); } catch (e) {}
+      if (typeof syncPush === 'function') try { syncPush(); } catch (e) {}
+    }
     function settleJobIncomeFor(p) {
       if (p && sameId(p.id, myId)) {
         try { applyPassiveJobIncomes(p); } catch (e) {}
@@ -4725,18 +4749,186 @@
       const income = pendingJobIncome;
       const fees = jobFeesPaid;
       const net = income - fees;
-      // 僅在自己結束買貨回合時結算自己的收成／抽成
-      if (p && sameId(p.id, myId)) {
-        pendingJobIncome = 0;
-        jobFeesPaid = 0;
-        if (income > 0 || fees > 0) {
-          p.cash += net;
-          if (net > 0) showToast(`職業結算入帳 +${net}（收成 ${income} − 抽成 ${fees}）`, 'success');
-          else if (net < 0) showToast(`職業結算扣款 ${net}（收成 ${income} − 抽成 ${fees}）`, 'error');
-          else showToast(`職業結算 ±0（收成 ${income} − 抽成 ${fees}）`, 'success');
+      if (!(p && sameId(p.id, myId))) return;
+      pendingJobIncome = 0;
+      jobFeesPaid = 0;
+      if (income <= 0 && fees <= 0) {
+        if (phase === 'fluctuate') {
+          if (!window._roundJobSettle || window._roundJobSettle.round !== round) {
+            window._roundJobSettle = { round: round, before: p.cash, income: 0, fees: 0, after: p.cash };
+          }
         }
+        return;
+      }
+      // 買貨回合結束：直接入帳，不進喊價前動畫池
+      if (phase === 'buy') {
+        p.cash += net;
+        if (net > 0) showToast('職業結算入帳 +' + net + '（收成 ' + income + ' − 抽成 ' + fees + '）', 'success');
+        else if (net < 0) showToast('職業結算扣款 ' + net + '（收成 ' + income + ' − 抽成 ' + fees + '）', 'error');
+        else showToast('職業結算 ±0（收成 ' + income + ' − 抽成 ' + fees + '）', 'success');
+        return;
+      }
+      // 波動等：入帳並記入喊價前那一波
+      const before = p.cash;
+      p.cash += net;
+      if (!window._roundJobSettle || window._roundJobSettle.round !== round) {
+        window._roundJobSettle = { round: round, before: before, income: 0, fees: 0 };
+      }
+      window._roundJobSettle.income += income;
+      window._roundJobSettle.fees += fees;
+      window._roundJobSettle.after = p.cash;
+    }
+
+    function showJobSettleCinema(done) {
+      const finish = function() {
+        const ov = document.getElementById('jobSettleOverlay');
+        if (ov) ov.classList.remove('show');
+        markJobSettleDone();
+        if (typeof done === 'function') {
+          // done 由同步門檻觸發喊價時再呼叫；此處僅本地動畫結束
+        }
+        window._jobSettleCinemaDone = true;
+        window._roundJobSettle = null;
+        markJobSettleDone();
+        tryStartBidAfterJobSettles(done);
+      };
+      const data = window._roundJobSettle && window._roundJobSettle.round === round
+        ? window._roundJobSettle
+        : { before: (me() && me().cash) || 0, income: 0, fees: 0, after: (me() && me().cash) || 0 };
+
+      // 黑幫：若有抽成且還有拒付次數 → 先詢問
+      const p = me();
+      if (p && hasJob(p, 'gangster') && (data.fees || 0) > 0 && (p.gangsterRefuseLeft || 0) > 0) {
+        window._pendingRefuse = { data: data, done: done, fees: data.fees };
+        const desc = document.getElementById('gangsterRefuseDesc');
+        if (desc) {
+          desc.innerHTML = '本回合職業抽成合計 <strong style="color:#c0392b;">' + data.fees + '</strong> 元。<br>剩餘拒絕次數：<strong>' + p.gangsterRefuseLeft + '</strong><br>是否拒絕本次抽成？';
+        }
+        const m = document.getElementById('gangsterRefuseModal');
+        if (m) m.classList.add('show');
+        return;
+      }
+      runJobSettleCinemaAnim(data, finish);
+    }
+    function resolveGangsterRefuse(refuse) {
+      const m = document.getElementById('gangsterRefuseModal');
+      if (m) m.classList.remove('show');
+      const pend = window._pendingRefuse;
+      window._pendingRefuse = null;
+      if (!pend) return;
+      const p = me();
+      const data = Object.assign({}, pend.data);
+      if (refuse && p && (p.gangsterRefuseLeft || 0) > 0) {
+        p.gangsterRefuseLeft -= 1;
+        // 退回已扣抽成
+        p.cash += (data.fees || 0);
+        data.fees = 0;
+        data.after = data.before + (data.income || 0);
+        showToast('已拒絕職業抽成（剩 ' + p.gangsterRefuseLeft + ' 次）', 'success');
+        if (typeof syncPush === 'function') syncPush();
+      }
+      const finish = function() {
+        const ov = document.getElementById('jobSettleOverlay');
+        if (ov) ov.classList.remove('show');
+        window._jobSettleCinemaDone = true;
+        tryStartBidAfterJobSettles(pend.done);
+      };
+      runJobSettleCinemaAnim(data, finish);
+    }
+    function runJobSettleCinemaAnim(data, finish) {
+      const ov = document.getElementById('jobSettleOverlay');
+      const amtEl = document.getElementById('jobSettleAmount');
+      const deltaEl = document.getElementById('jobSettleDelta');
+      if (!ov || !amtEl || !deltaEl) { if (finish) finish(); return; }
+      let display = data.before | 0;
+      amtEl.textContent = String(display);
+      amtEl.className = 'js-amount';
+      deltaEl.textContent = '';
+      deltaEl.className = 'js-delta';
+      deltaEl.style.color = '';
+      ov.classList.add('show');
+      const sleep = function(ms) { return new Promise(function(r) { setTimeout(r, ms); }); };
+      const shake = function(cls) {
+        amtEl.classList.remove('shake', 'plus', 'minus');
+        void amtEl.offsetWidth;
+        amtEl.classList.add('shake');
+        if (cls) amtEl.classList.add(cls);
+      };
+      (async function() {
+        try {
+          await sleep(600);
+          if ((data.income || 0) > 0) {
+            deltaEl.className = 'js-delta plus';
+            deltaEl.textContent = '職業收成 +' + data.income;
+            display = (data.before | 0) + (data.income | 0);
+            amtEl.textContent = String(display);
+            shake('plus');
+            await sleep(1000);
+          }
+          if ((data.fees || 0) > 0) {
+            deltaEl.className = 'js-delta minus';
+            deltaEl.textContent = '職業抽成 −' + data.fees;
+            display = (data.before | 0) + (data.income | 0) - (data.fees | 0);
+            amtEl.textContent = String(display);
+            shake('minus');
+            await sleep(1000);
+          }
+          if (!(data.income > 0) && !(data.fees > 0)) {
+            deltaEl.className = 'js-delta';
+            deltaEl.style.color = '#8ab4d8';
+            deltaEl.textContent = '本回合無職業收成／抽成';
+            await sleep(1800);
+          } else {
+            deltaEl.className = 'js-delta';
+            deltaEl.style.color = '#c9a227';
+            deltaEl.textContent = '現金合計 ' + display;
+            amtEl.className = 'js-amount';
+            amtEl.textContent = String(display);
+            await sleep(2000);
+          }
+        } catch (e) {}
+        deltaEl.style.color = '';
+        if (finish) finish();
+      })();
+    }
+    // 全員職業結算動畫完成後才喊價（避免步調不一致）
+    window._jobSettleDoneIds = window._jobSettleDoneIds || {};
+    function markJobSettleDone() {
+      window._jobSettleDoneIds[myId] = true;
+      window._jobSettleDoneIds[String(myId)] = true;
+      if (isOnlineMode() && window.GameNet) {
+        try { GameNet.sendEvent('job_settle_done', { playerId: myId, round: round }); } catch (e) {}
       }
     }
+    function tryStartBidAfterJobSettles(startBidFn) {
+      if (startBidFn) window._pendingStartBidFn = startBidFn;
+      const players = room.players || [];
+      const allDone = !isOnlineMode() || players.every(function(pl) {
+        return window._jobSettleDoneIds[pl.id] || window._jobSettleDoneIds[String(pl.id)];
+      });
+      const meP = me();
+      const host = meP && (meP.isHost || sameId(meP.id, room.hostId || 1));
+      if (!allDone) {
+        if (!window._jobSettleWaitT) {
+          window._jobSettleWaitT = setTimeout(function() {
+            window._jobSettleWaitT = null;
+            const fn = window._pendingStartBidFn;
+            window._pendingStartBidFn = null;
+            window._jobSettleDoneIds = {};
+            // 超時僅房主發起喊價
+            if (typeof fn === 'function' && (!isOnlineMode() || host)) fn();
+          }, 10000);
+        }
+        return;
+      }
+      if (window._jobSettleWaitT) { clearTimeout(window._jobSettleWaitT); window._jobSettleWaitT = null; }
+      const fn = window._pendingStartBidFn;
+      window._pendingStartBidFn = null;
+      window._jobSettleDoneIds = {};
+      // 聯機僅房主發送 start_bid，其他人等事件
+      if (typeof fn === 'function' && (!isOnlineMode() || host)) fn();
+    }
+
     let _gcResolve = null;
     function showPlayReveal(name, cards) {
       const box = document.getElementById('playReveal');
@@ -4885,6 +5077,8 @@
           }
           phaseDoneIds = {};
           round = Number(round) + 1;
+          window._jobSettleDoneIds = {};
+          // 保留 _roundJobSettle 供本段動畫使用，動畫後清除
           (room.players || []).forEach(pl => {
             pl.borrowedThisRound = 0;
             pl.bankBorrowedThisRound = false;
@@ -4894,7 +5088,7 @@
           showToast('TANGA 本回合跳價：' + (GOODS.find(g=>g.id==='tanga')||{}).price, 'success');
           resetRightsFees();
           const riskWinners = (function(){ try { return settleRiskBets() || []; } catch(e) { return []; } })();
-          const startBidAfterRisk = function() {
+          const startBidAfterAll = function() {
             showToast('第 ' + round + ' 回合：先買順序（喊價）', 'success');
             if (isOnlineMode() && window.GameNet) {
               try {
@@ -4904,11 +5098,14 @@
             }
             openBidRound();
           };
+          // 流程：投資風險家中獎 → 當局現金結算動畫 → 喊價
+          const afterRiskThenJob = function() {
+            showJobSettleCinema(startBidAfterAll);
+          };
           if (riskWinners && riskWinners.length) {
-            // 先展示中獎，關閉／逾時後再喊價
-            window._pendingAfterRiskWin = startBidAfterRisk;
+            window._pendingAfterRiskWin = afterRiskThenJob;
           } else {
-            startBidAfterRisk();
+            afterRiskThenJob();
           }
         } else {
           let cur = nextTurnAfter(myId);
@@ -6542,6 +6739,15 @@ function openGangsterPanel() {
           updateReadyCinema();
           maybeStartAfterAllReady();
         }
+        if (ev === 'job_settle_done' && payload) {
+          const pid = payload.playerId;
+          if (pid != null) {
+            window._jobSettleDoneIds = window._jobSettleDoneIds || {};
+            window._jobSettleDoneIds[pid] = true;
+            window._jobSettleDoneIds[String(pid)] = true;
+          }
+          tryStartBidAfterJobSettles(null);
+        }
         if (ev === 'risk_win' && payload && payload.winners) {
           // 發送端已顯示；其他人先看中獎再等 start_bid
           if (!(d.fromPlayerId != null && sameId(d.fromPlayerId, myId))) {
@@ -6581,11 +6787,12 @@ function openGangsterPanel() {
             if (!bidState.active) openBidRound();
             render();
           };
+          const afterJob = function() { showJobSettleCinema(doBid); };
           const ov = document.getElementById('riskWinOverlay');
           if (ov && ov.classList.contains('show')) {
-            window._pendingAfterRiskWin = doBid;
+            window._pendingAfterRiskWin = afterJob;
           } else {
-            doBid();
+            afterJob();
           }
         }
         if (ev === 'rent_request' && payload) {
