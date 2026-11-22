@@ -3309,20 +3309,21 @@
 
     function me() { return room.players.find(p => p.id === myId) || room.players[0]; }
     function activeSeatOrder() {
-      // 只保留場上仍存在的玩家，避免人數少於預設時共享對象指錯
+      // 副牌共享序：只使用首局 seatOrder，不使用 turnOrder
       const alive = new Set((room.players || []).map(p => Number(p.id)));
       let order = (seatOrder && seatOrder.length)
         ? seatOrder.map(Number).filter(id => alive.has(id))
-        : (room.players || []).map(p => Number(p.id));
+        : [];
+      // 補上後加入但仍保持原 seatOrder 相對順序優先
+      (room.players || []).forEach(p => {
+        const id = Number(p.id);
+        if (alive.has(id) && !order.includes(id)) order.push(id);
+      });
       if (!order.length) order = (room.players || []).map(p => Number(p.id));
-      // 若 seatOrder 被過濾後不足 2 人，回退實際玩家順序
-      if (order.length < (room.players || []).length) {
-        const rest = (room.players || []).map(p => Number(p.id)).filter(id => !order.includes(id));
-        order = order.concat(rest);
-      }
       return order;
     }
     function neighbor() {
+      // 副牌組：固定用首局 seatOrder（activeSeatOrder），與喊價後 turnOrder 無關
       const order = activeSeatOrder();
       if (!order.length) return room.players[0] || me();
       let idx = order.findIndex(id => sameId(id, myId));
@@ -3330,7 +3331,6 @@
       const nid = order[(idx + 1) % order.length];
       const n = (room.players || []).find(p => sameId(p.id, nid));
       if (n) return n;
-      // 後備：陣列上下一位
       const i2 = (room.players || []).findIndex(p => sameId(p.id, myId));
       return room.players[(i2 < 0 ? 0 : i2 + 1) % room.players.length];
     }
@@ -4792,9 +4792,12 @@
         markJobSettleDone();
         tryStartBidAfterJobSettles(done);
       };
-      const data = window._roundJobSettle && window._roundJobSettle.round === round
-        ? window._roundJobSettle
-        : { before: (me() && me().cash) || 0, income: 0, fees: 0, after: (me() && me().cash) || 0 };
+      // 無收成也要播「無職業收成／抽成」，避免與其他玩家步調不一致
+      let data = window._roundJobSettle;
+      if (!data || (data.round != null && data.round !== round && data.round !== round - 1)) {
+        const c = (me() && me().cash) || 0;
+        data = { before: c, income: 0, fees: 0, after: c };
+      }
 
       // 黑幫：若有抽成且還有拒付次數 → 先詢問
       const p = me();
@@ -5076,20 +5079,15 @@
             p.repaidThisTurn = 0;
           }
           phaseDoneIds = {};
-          round = Number(round) + 1;
+          // 回合數改到喊價結束後再 +1
           window._jobSettleDoneIds = {};
-          // 保留 _roundJobSettle 供本段動畫使用，動畫後清除
           (room.players || []).forEach(pl => {
-            pl.borrowedThisRound = 0;
-            pl.bankBorrowedThisRound = false;
             checkPrivilegedExpiry(pl);
           });
-          randomizeTangaPrice();
-          showToast('TANGA 本回合跳價：' + (GOODS.find(g=>g.id==='tanga')||{}).price, 'success');
           resetRightsFees();
           const riskWinners = (function(){ try { return settleRiskBets() || []; } catch(e) { return []; } })();
           const startBidAfterAll = function() {
-            showToast('第 ' + round + ' 回合：先買順序（喊價）', 'success');
+            showToast('結算結束 → 買順序（喊價）', 'success');
             if (isOnlineMode() && window.GameNet) {
               try {
                 GameNet.sendEvent('start_bid_round', { round: round, phase: 'bid' });
@@ -6088,10 +6086,17 @@ function openGangsterPanel() {
       firstPlayerId = Number(firstId);
       turnDir = dir || 'cw';
       turnOrder = buildOrderFromFirst(firstPlayerId, turnDir).map(Number);
-      // 座位序固定整局（共享隔壁用）— 僅含實際在場玩家
-      if (!seatOrder.length) seatOrder = turnOrder.slice();
-      else seatOrder = seatOrder.map(Number).filter(id => (room.players||[]).some(p => sameId(p.id, id)));
-      if (seatOrder.length < (room.players||[]).length) seatOrder = turnOrder.slice();
+      // 副牌共享序僅首局建立，之後永不被 turnOrder 覆蓋
+      if (!seatOrder || !seatOrder.length) {
+        seatOrder = turnOrder.slice();
+      } else {
+        const alive = new Set((room.players || []).map(p => Number(p.id)));
+        seatOrder = seatOrder.map(Number).filter(id => alive.has(id));
+        (room.players || []).forEach(p => {
+          const id = Number(p.id);
+          if (!seatOrder.includes(id)) seatOrder.push(id);
+        });
+      }
       setupDone = true;
       phase = 'buy';
       phaseDoneIds = {};
@@ -6426,17 +6431,25 @@ function openGangsterPanel() {
         if (head) arr = [head].concat(rest);
       }
       turnOrder = arr.map(x => Number(x.id));
+      // 副牌 seatOrder 不在此改寫（首局固定）
       phaseDoneIds = {};
       currentTurnId = Number(turnOrder[0] || myId);
       setupDone = true;
       phase = 'buy';
+      // 流程：買貨→波動→結算→喊價→（此處）新回合買貨
+      round = Number(round) + 1;
+      window._jobSettleDoneIds = {};
+      window._roundJobSettle = null;
+      (room.players || []).forEach(pl => {
+        pl.borrowedThisRound = 0;
+        pl.bankBorrowedThisRound = false;
+      });
       randomizeTangaPrice();
       try { if (round >= 2) tickMarketsOnNewRound(); } catch(e) {}
       try { renderMarketPanel(); } catch(e) {}
       try { if (typeof syncPush === 'function') syncPush(); } catch(e) {}
-      // 買順序不影響回合數：回合數在波動結束時已 +1，此處只更新操作序
       const names = arr.map(x => x.name + '(' + x.bid + ')').join(' → ');
-      showToast('第 ' + round + ' 回合操作順序：' + names, 'success');
+      showToast('第 ' + round + ' 回合買貨開始｜順序：' + names + '｜TANGA ' + ((GOODS.find(g=>g.id==='tanga')||{}).price||''), 'success');
       const meP = me();
       if (meP && (meP.debt || 0) > 0) {
         if (!meP.debtAnchor || meP.debtAnchor < meP.debt) meP.debtAnchor = meP.debt;
