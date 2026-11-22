@@ -4052,10 +4052,8 @@
       const hold = p.holdings[g.id] || 0;
       if (qty < 1 || qty > hold) { showToast('數量不正確', 'error'); return; }
       let income = qty * g.price;
-      // 特殊貨物賣出：棋盤現價 ×2
-      if (g.special) {
-        income = qty * g.price * 2;
-      }
+      // 特殊貨物貨物本體仍按棋盤現價賣出（不可×2，否則買回洗錢）
+      // 物權賣價另計（sellRight）
       let note = '';
       // 金融亡球：他人啟動時，自己賣價 -30%
       try {
@@ -4209,7 +4207,11 @@
         return;
       }
       const g = GOODS.find(x => x.id === goodId);
-      const val = rightUnitValue(g); // 賣出價 = 市價×5
+      // 一般物權賣價：與買價同公式的持有價值；TANGA 特殊物權賣價 = 棋盤現價×2（低於買價×20，無法洗錢）
+      let val = rightUnitValue(g);
+      if (g && (g.special || g.id === 'tanga')) {
+        val = Math.max(0, Math.round(g.price * 2));
+      }
       goodsRights[goodId] = null;
       p.cash += val;
       bankFunds -= val;
