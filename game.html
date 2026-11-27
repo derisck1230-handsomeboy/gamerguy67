@@ -27,6 +27,15 @@
       min-height: 100vh;
       overflow-x: hidden;
     }
+    /* perf-contain：board 不用 layout contain，避免裁切貨物列 */
+    .cards-row, .top-bar, .market-panel {
+      contain: style;
+    }
+    .board-wrap {
+      contain: style;
+      overflow-x: auto;
+      overflow-y: visible;
+    }
     .ship-deck {
       min-height: 100vh;
       background:
@@ -295,10 +304,18 @@
     }
     .chess-board {
       display: grid;
-      grid-template-columns: 72px repeat(40, minmax(22px, 1fr));
+      grid-template-columns: 96px repeat(40, minmax(22px, 1fr));
       gap: 3px;
-      min-width: 1080px;
+      min-width: 1120px;
       padding: 4px 2px;
+      overflow: visible;
+    }
+    .chess-board .board-label {
+      min-height: 28px;
+      font-size: 0.68rem;
+    }
+    .chess-board .cell {
+      min-height: 26px;
     }
     .board-label {
       font-size: 0.72rem; color: var(--gold);
@@ -850,7 +867,49 @@
     }
     .modal-mask.show { display: flex; }
     .modal-mask .modal-box,
-    .modal-mask .risk-win-overlay {
+    .modal-mask .job-settle-overlay {
+      position: fixed; inset: 0; z-index: 390;
+      display: none; align-items: center; justify-content: center;
+      background: rgba(4, 12, 22, 0.78);
+    }
+    .job-settle-overlay.show { display: flex; }
+    .job-settle-card {
+      text-align: center;
+      padding: 28px 32px;
+      min-width: min(320px, 88vw);
+      border-radius: 18px;
+      border: 2px solid rgba(201,162,39,0.65);
+      background: linear-gradient(165deg, rgba(20,32,48,0.95), rgba(10,16,28,0.96));
+      box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+    }
+    .job-settle-card .js-label {
+      font-size: 0.95rem; font-weight: 800; color: #c9a227;
+      letter-spacing: 0.08em; margin-bottom: 10px;
+    }
+    .job-settle-card .js-amount {
+      font-size: 3rem; font-weight: 900; color: #f3e5c5;
+      line-height: 1.1; font-variant-numeric: tabular-nums;
+    }
+    .job-settle-card .js-amount.shake { animation: jobCashShake 0.45s ease; }
+    .job-settle-card .js-amount.plus { color: #5dde8a; }
+    .job-settle-card .js-amount.minus { color: #ff6b6b; }
+    .job-settle-card .js-delta {
+      min-height: 1.6em; margin-top: 8px;
+      font-size: 1.25rem; font-weight: 800;
+    }
+    .job-settle-card .js-delta.plus { color: #5dde8a; }
+    .job-settle-card .js-delta.minus { color: #ff6b6b; }
+    .job-settle-card .js-sub {
+      margin-top: 12px; font-size: 0.8rem; color: #8ab4d8;
+    }
+    @keyframes jobCashShake {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-6px) scale(1.04); }
+      40% { transform: translateX(6px) scale(1.06); }
+      60% { transform: translateX(-4px) scale(1.03); }
+      80% { transform: translateX(4px); }
+    }
+    .risk-win-overlay {
       position: fixed; inset: 0; z-index: 400;
       display: none; align-items: center; justify-content: center;
       background: radial-gradient(circle at center, rgba(80,40,0,0.55), rgba(0,0,0,0.72));
@@ -932,10 +991,62 @@
     }
     #privilegeModal .modal-box,
     #gangsterModal .modal-box,
-    #politicianModal .modal-box,
-    #privilegeModal .modal,
-    #gangsterModal .modal,
-    #politicianModal .risk-win-overlay {
+    /* 職業專屬頁面：提高層級，可滾動 */
+    #privilegeModal,
+    #gangsterModal,
+    #politicianModal {
+      z-index: 280;
+    }
+    #privilegeModal .modal-box,
+    #gangsterModal .modal-box,
+    #politicianModal .modal-box {
+      max-height: min(85vh, 640px);
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .job-settle-overlay {
+      position: fixed; inset: 0; z-index: 390;
+      display: none; align-items: center; justify-content: center;
+      background: rgba(4, 12, 22, 0.78);
+    }
+    .job-settle-overlay.show { display: flex; }
+    .job-settle-card {
+      text-align: center;
+      padding: 28px 32px;
+      min-width: min(320px, 88vw);
+      border-radius: 18px;
+      border: 2px solid rgba(201,162,39,0.65);
+      background: linear-gradient(165deg, rgba(20,32,48,0.95), rgba(10,16,28,0.96));
+      box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+    }
+    .job-settle-card .js-label {
+      font-size: 0.95rem; font-weight: 800; color: #c9a227;
+      letter-spacing: 0.08em; margin-bottom: 10px;
+    }
+    .job-settle-card .js-amount {
+      font-size: 3rem; font-weight: 900; color: #f3e5c5;
+      line-height: 1.1; font-variant-numeric: tabular-nums;
+    }
+    .job-settle-card .js-amount.shake { animation: jobCashShake 0.45s ease; }
+    .job-settle-card .js-amount.plus { color: #5dde8a; }
+    .job-settle-card .js-amount.minus { color: #ff6b6b; }
+    .job-settle-card .js-delta {
+      min-height: 1.6em; margin-top: 8px;
+      font-size: 1.25rem; font-weight: 800;
+    }
+    .job-settle-card .js-delta.plus { color: #5dde8a; }
+    .job-settle-card .js-delta.minus { color: #ff6b6b; }
+    .job-settle-card .js-sub {
+      margin-top: 12px; font-size: 0.8rem; color: #8ab4d8;
+    }
+    @keyframes jobCashShake {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-6px) scale(1.04); }
+      40% { transform: translateX(6px) scale(1.06); }
+      60% { transform: translateX(-4px) scale(1.03); }
+      80% { transform: translateX(4px); }
+    }
+    .risk-win-overlay {
       position: fixed; inset: 0; z-index: 400;
       display: none; align-items: center; justify-content: center;
       background: radial-gradient(circle at center, rgba(80,40,0,0.55), rgba(0,0,0,0.72));
@@ -1015,6 +1126,48 @@
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
       padding-bottom: 24px;
+    }
+    .job-settle-overlay {
+      position: fixed; inset: 0; z-index: 390;
+      display: none; align-items: center; justify-content: center;
+      background: rgba(4, 12, 22, 0.78);
+    }
+    .job-settle-overlay.show { display: flex; }
+    .job-settle-card {
+      text-align: center;
+      padding: 28px 32px;
+      min-width: min(320px, 88vw);
+      border-radius: 18px;
+      border: 2px solid rgba(201,162,39,0.65);
+      background: linear-gradient(165deg, rgba(20,32,48,0.95), rgba(10,16,28,0.96));
+      box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+    }
+    .job-settle-card .js-label {
+      font-size: 0.95rem; font-weight: 800; color: #c9a227;
+      letter-spacing: 0.08em; margin-bottom: 10px;
+    }
+    .job-settle-card .js-amount {
+      font-size: 3rem; font-weight: 900; color: #f3e5c5;
+      line-height: 1.1; font-variant-numeric: tabular-nums;
+    }
+    .job-settle-card .js-amount.shake { animation: jobCashShake 0.45s ease; }
+    .job-settle-card .js-amount.plus { color: #5dde8a; }
+    .job-settle-card .js-amount.minus { color: #ff6b6b; }
+    .job-settle-card .js-delta {
+      min-height: 1.6em; margin-top: 8px;
+      font-size: 1.25rem; font-weight: 800;
+    }
+    .job-settle-card .js-delta.plus { color: #5dde8a; }
+    .job-settle-card .js-delta.minus { color: #ff6b6b; }
+    .job-settle-card .js-sub {
+      margin-top: 12px; font-size: 0.8rem; color: #8ab4d8;
+    }
+    @keyframes jobCashShake {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-6px) scale(1.04); }
+      40% { transform: translateX(6px) scale(1.06); }
+      60% { transform: translateX(-4px) scale(1.03); }
+      80% { transform: translateX(4px); }
     }
     .risk-win-overlay {
       position: fixed; inset: 0; z-index: 400;
@@ -1319,6 +1472,14 @@
 <body>
   <div class="toast" id="toast"></div>
   
+  <div class="job-settle-overlay" id="jobSettleOverlay">
+    <div class="job-settle-card">
+      <div class="js-label">當局現金結算</div>
+      <div class="js-amount" id="jobSettleAmount">0</div>
+      <div class="js-delta" id="jobSettleDelta"></div>
+      <div class="js-sub" id="jobSettleSub">職業收成／抽成（不含貨物與欠債）</div>
+    </div>
+  </div>
   <div class="risk-win-overlay" id="riskWinOverlay" onclick="hideRiskWinOverlay()">
     <div class="risk-win-card" onclick="event.stopPropagation()">
       <div class="risk-win-spark">✨ 7️⃣ 幸運降臨 7️⃣ ✨</div>
@@ -1910,6 +2071,10 @@
       return best;
     }
     function randomizeTangaPrice() {
+      _boardSig = "";
+      return _randomizeTangaPriceImpl();
+    }
+    function _randomizeTangaPriceImpl() {
       const g = GOODS.find(x => x.id === 'tanga');
       if (!g) return;
       const idx = Math.floor(Math.random() * TANGA_GRID.length);
@@ -2060,6 +2225,7 @@
         if (gain > 0) {
           pendingJobIncome += gain;
           bankFunds = Math.max(0, bankFunds - gain);
+          try { noteJobSettleDetail({ dir: 'in', amount: gain, who: '遊戲庫', reason: '特權者' }); } catch (e) {}
           showToast('特權者：場上職業×100 = +' + gain, 'success');
         }
       }
@@ -2070,6 +2236,10 @@
           pl.cash -= 150;
           if (sameId(pl.id, myId)) jobFeesPaid += 150;
           pendingJobIncome += 150;
+          try {
+            if (sameId(pl.id, myId)) noteJobSettleDetail({ dir: 'out', amount: 150, who: p.name, reason: '黑幫' });
+            else noteJobSettleDetail({ dir: 'in', amount: 150, who: pl.name, reason: '黑幫收取' });
+          } catch (e) {}
         });
         showToast('黑幫：向每人收取 150', 'success');
       }
@@ -2081,6 +2251,10 @@
           if (sameId(p.id, myId)) jobFeesPaid += 150;
           pl.cash += 150;
           if (sameId(pl.id, myId)) pendingJobIncome += 150;
+          try {
+            if (sameId(p.id, myId)) noteJobSettleDetail({ dir: 'out', amount: 150, who: pl.name, reason: '政治家支付' });
+            if (sameId(pl.id, myId)) noteJobSettleDetail({ dir: 'in', amount: 150, who: p.name, reason: '政治家' });
+          } catch (e) {}
         });
         showToast('政治家：支付每人 150', 'error');
       }
@@ -2375,7 +2549,26 @@
     let selectedCards = [];
     let mustRepayThisTurn = false;
         // 還清後可再借（額度仍受本回合上限限制）
-    let hasPlayedThisPhase = false; // 波動階段每人只能出牌一次
+    // 性能相關狀態必須在任何 deal/render 之前宣告，避免 TDZ 導致整頁無法啟動
+    let _renderRaf = 0;
+    let _boardSig = '';
+    let _cardsSig = {};
+    let _syncPushTimer = 0;
+    let _zoneStartsCache = null;
+
+    let hasPlayedThisPhase = false; // 兼容舊邏輯；以玩家 hasPlayedFluctuate 為準
+    function playerHasPlayedFluctuate(pl) {
+      if (!pl) return !!hasPlayedThisPhase;
+      return !!(pl.hasPlayedFluctuate || (sameId(pl.id, myId) && hasPlayedThisPhase));
+    }
+    function setPlayerPlayedFluctuate(pl, v) {
+      if (pl) pl.hasPlayedFluctuate = !!v;
+      if (pl && sameId(pl.id, myId)) hasPlayedThisPhase = !!v;
+    }
+    function clearAllPlayedFluctuate() {
+      hasPlayedThisPhase = false;
+      (room.players || []).forEach(function(pl) { pl.hasPlayedFluctuate = false; });
+    }
     let turnOrder = [];       // 玩家 id 順序
     let turnDir = 'cw';      // cw | ccw
     let setupDone = false;
@@ -2453,6 +2646,7 @@
         ];
         myId = 1;
         try { localStorage.setItem('myPlayerId', '1'); } catch(e) {}
+        try { if (typeof dealInitialCards === 'function') dealInitialCards(); } catch(e) {}
       } else if (!room.players) {
         room.players = [
           { id: 1, name: '玩家一', cash: 1000, debt: 0, holdings: {}, cards: [], privateCards: [] }
@@ -2503,16 +2697,17 @@
     }
 
     function dealInitialCards() {
-      room.players.forEach(pl => ensureJobs(pl));
-
-      room.players.forEach(p => {
-        if (p.cards.length === 0) {
-          for (let i = 0; i < 8; i++) {
-            const card = drawRandomFromDeck();
-            if (card) p.cards.push(card);
-          }
+      (room.players || []).forEach(pl => {
+        ensureJobs(pl);
+        if (!Array.isArray(pl.cards)) pl.cards = [];
+        if (!Array.isArray(pl.privateCards)) pl.privateCards = [];
+        while (pl.cards.length < 8) {
+          const card = drawRandomFromDeck();
+          if (!card) break;
+          pl.cards.push(card);
         }
       });
+      try { _cardsSig = {}; } catch (e) {}
     }
     dealInitialCards();
 
@@ -3012,18 +3207,30 @@
       ];
     }
     function buildMarketGoodsStock() {
-      const pool = GOODS.slice();
+      // 商人貨物數量與場上庫存連動（一般最多12、特殊最多5；且不可超過當前 stock）
+      const normals = GOODS.filter(g => !g.special && (g.stock || 0) > 0);
+      const specials = GOODS.filter(g => g.special && (g.stock || 0) > 0);
       const picks = [];
-      // try include special with 5%
-      const specials = pool.filter(g => g.special);
-      const normals = pool.filter(g => !g.special);
+      const tryPick = function(pool, preferSpecial) {
+        if (!pool.length) return null;
+        return pool[Math.floor(Math.random() * pool.length)];
+      };
       for (let i = 0; i < 3; i++) {
-        let g;
-        if (specials.length && Math.random() < 0.015) g = specials[Math.floor(Math.random()*specials.length)];
-        else g = normals[Math.floor(Math.random()*normals.length)];
+        let g = null;
+        if (specials.length && Math.random() < 0.015) g = tryPick(specials);
+        if (!g) g = tryPick(normals);
+        if (!g) break;
         if (picks.find(p => p.id === g.id)) { i--; continue; }
-        const maxQty = g.special ? 1 : (1 + Math.floor(Math.random() * 2)); // 1~2，特殊貨最多1
-        picks.push({ id: g.id, name: g.name, icon: g.icon, qty: maxQty, price: Math.max(1, Math.floor(g.price * 0.7)), special: !!g.special });
+        const boardCap = g.special ? 5 : 12;
+        const boardLeft = Math.max(0, Math.min(boardCap, g.stock | 0));
+        if (boardLeft < 1) { i--; continue; }
+        const want = g.special ? 1 : (1 + Math.floor(Math.random() * 2)); // 1~2
+        const qty = Math.min(want, boardLeft);
+        picks.push({
+          id: g.id, name: g.name, icon: g.icon, qty: qty,
+          price: Math.max(1, Math.floor(g.price * 0.7)),
+          special: !!g.special
+        });
       }
       return picks;
     }
@@ -3250,7 +3457,7 @@
       bankFunds += item.price;
       p.holdings[item.id] = (p.holdings[item.id] || 0) + 1;
       item.qty -= 1;
-      // 商人貨源不影響場上棋盤貨物庫存
+      // 商人貨源獨立：不扣場上棋盤庫存（場上庫存只隨玩家向盤面買／賣變動）
       showToast('從貨物商人購得 ' + item.name, 'success');
       render();
       if (typeof syncPush === 'function') syncPush();
@@ -3444,9 +3651,10 @@
       if (hasJob(p, 'politician')) jobBtns += `<button class="btn-navy" onclick="openPoliticianPanel()">😎政治</button>`;
       if (hasJob(p, 'risk_investor')) jobBtns += `<button class="btn-gold" onclick="openRiskInvestorPanel()">7️⃣風險</button>`;
       if (phase === 'fluctuate') {
-        if (hasPlayedThisPhase) {
+        if (playerHasPlayedFluctuate(p)) {
           bar.innerHTML = `
             <button class="btn-green" style="opacity:0.7;" disabled>出牌完成…</button>
+            <button class="btn-navy" onclick="endPhase()">結束本階段</button>
             ${jobBtns}${pauseBtn}`;
         } else {
           bar.innerHTML = `
@@ -3472,11 +3680,38 @@
       }
     }
 
+    // ===== 性能：合併同幀渲染、節流同步（變數已提前宣告）=====
+    function getZoneStarts() {
+      if (_zoneStartsCache) return _zoneStartsCache;
+      const zoneStarts = new Set();
+      let prevZ = null;
+      for (let i = 0; i <= GRID_MAX; i++) {
+        const z = zoneOfPrice(GRID_PRICES[i]);
+        if (z !== prevZ) { zoneStarts.add(i); prevZ = z; }
+      }
+      _zoneStartsCache = zoneStarts;
+      return zoneStarts;
+    }
+    function scheduleRender() {
+      if (_renderRaf) return;
+      _renderRaf = requestAnimationFrame(function() {
+        _renderRaf = 0;
+        try { renderImmediate(); } catch (e) { console.warn('render', e); }
+      });
+    }
     function render() {
+      scheduleRender();
+    }
+    function renderImmediate() {
       const p = me();
+      if (!p) return;
+      if (!Array.isArray(p.cards)) p.cards = [];
+      if (!Array.isArray(p.privateCards)) p.privateCards = [];
       const cashEl = document.getElementById('cashDisplay');
-      cashEl.textContent = p.cash;
-      cashEl.className = 'stat-value' + (p.cash < 0 ? ' negative' : '');
+      if (cashEl) {
+        cashEl.textContent = p.cash;
+        cashEl.className = 'stat-value' + (p.cash < 0 ? ' negative' : '');
+      }
       document.getElementById('holdValueDisplay').textContent = holdValue(p);
       document.getElementById('totalDisplay').textContent = totalAssets(p);
       document.getElementById('debtDisplay').textContent = p.debt;
@@ -3587,12 +3822,15 @@
       document.getElementById('myCardsTitle').textContent =
         phase === 'fluctuate' ? '我的公開牌組（點選 1 張）' : '我的公開牌組';
       // 不顯示「與誰共享」提示
+      const shareName = (n && n.name) ? n.name : '？';
       document.getElementById('neighborCardsTitle').textContent =
-        phase === 'fluctuate' ? '副牌組（點選 1 張）' : '副牌組';
+        phase === 'fluctuate'
+          ? ('副牌組 · 與「' + shareName + '」共享（點選 1 張）')
+          : ('副牌組 · 與「' + shareName + '」共享');
 
       renderBoard();
       renderCards('myCards', p.cards, 'mine');
-      renderCards('neighborCards', n.cards, 'neighbor');
+      renderCards('neighborCards', (n && n.cards) ? n.cards : [], 'neighbor');
       renderCards('privateCards', p.privateCards, 'private');
       renderActionBar();
       try {
@@ -3613,10 +3851,18 @@
 
     function renderCards(containerId, cards, from) {
       const el = document.getElementById(containerId);
+      if (!el) return;
       if (!cards || cards.length === 0) {
-        el.innerHTML = '<span style="color:#6a8a9a;font-size:0.85rem;">無牌</span>';
+        if (_cardsSig[containerId] !== 'empty') {
+          el.innerHTML = '<span style="color:#6a8a9a;font-size:0.85rem;">無牌</span>';
+          _cardsSig[containerId] = 'empty';
+        }
         return;
       }
+      const selKey = (selectedCards || []).filter(function(s){ return s.from === from; }).map(function(s){ return s.index; }).join(',');
+      const sig = from + '|' + cards.map(function(c){ return (c.good||c.id||'') + (c.value||c.val||''); }).join(',') + '|' + selKey;
+      if (_cardsSig[containerId] === sig) return;
+      _cardsSig[containerId] = sig;
       el.innerHTML = cards.map((c, i) => {
         const isSel = selectedCards.some(s => s.from === from && s.index === i);
         const goodCls = 'card-' + (c.good || 'cotton');
@@ -3641,13 +3887,7 @@
     }
 
     function renderBoard() {
-      // 區間起始格（用於左側分隔線）
-      const zoneStarts = new Set();
-      let prevZ = null;
-      for (let i = 0; i <= GRID_MAX; i++) {
-        const z = zoneOfPrice(GRID_PRICES[i]);
-        if (z !== prevZ) { zoneStarts.add(i); prevZ = z; }
-      }
+      const zoneStarts = getZoneStarts();
 
       // 僅本機可見的投資風險家下注標記
       const riskZonePending = {}; // zone -> remaining bets
@@ -3668,6 +3908,18 @@
           });
         }
       } catch (e) {}
+
+      const normals = NORMAL_GOODS();
+      const boardSig = normals.map(function(g) {
+        return g.id + ':' + g.price + ':' + (g.stock|0);
+      }).join('|') + '#' + Object.keys(riskZonePending).join(',') + '#' + Object.keys(riskCellPending).join(',');
+      // 必須有：1 列標題 + 每貨 (1 label + 40 cells) = 1 + n*41
+      const needCells = 1 + normals.length * (GRID_MAX + 2);
+      const probe = document.getElementById('chessBoard');
+      if (boardSig === _boardSig && probe && probe.children && probe.children.length >= needCells) {
+        return;
+      }
+      _boardSig = boardSig;
 
       let html = '';
       html += `<div class="board-label">格價</div>`;
@@ -3734,7 +3986,19 @@
 
     // 波動階段：自己組、隔壁組各只能亮 1 張；點另一張會取消前一張
     function toggleCard(from, index) {
-      if (phase !== 'fluctuate' && from !== 'private') return;
+      if (phase !== 'fluctuate' && from !== 'private') {
+        showToast('波動階段才能選公開牌出牌', 'error');
+        return;
+      }
+      if (phase === 'fluctuate' && !isMyTurn()) {
+        showToast('還沒輪到你', 'error');
+        return;
+      }
+      if (phase === 'fluctuate' && playerHasPlayedFluctuate(me())) {
+        showToast('本階段已出過牌', 'error');
+        return;
+      }
+      _cardsSig = {}; // 強制刷新選取高亮
 
       if (from === 'mine' || from === 'neighbor') {
         // 同組只保留一張
@@ -4035,7 +4299,7 @@
       const paidFee = applyRightsFee(p, 'buy', g.id);
       p.cash -= cost;
       p.holdings[g.id] = (p.holdings[g.id] || 0) + qty;
-      g.stock -= qty;
+      g.stock = Math.max(0, (g.stock || 0) - qty);
       closeModals();
       render();
       showToast(paidFee > 0 ? `已買入 ${g.name} × ${qty}（另付物權費 ${paidFee}）` : `已買入 ${g.name} × ${qty}`, 'success');
@@ -4090,7 +4354,10 @@
       }
       p.cash += income;
       p.holdings[g.id] -= qty;
-      g.stock += qty;
+      {
+        const cap = (g.special || g.id === 'tanga') ? 5 : 12;
+        g.stock = Math.min(cap, Math.max(0, (g.stock || 0) + qty));
+      }
       closeModals();
       render();
       showToast(`已賣出 ${g.name} × ${qty}${note}`, 'success');
@@ -4423,12 +4690,11 @@
         showToast('現在不是波動出牌階段', 'error');
         return;
       }
-      if (hasPlayedThisPhase) {
+      const p = me();
+      if (playerHasPlayedFluctuate(p)) {
         showToast('本階段已出過牌，不能再出（一次下手）', 'error');
         return;
       }
-
-      const p = me();
       const n = neighbor();
       const mine = selectedCards.filter(s => s.from === 'mine');
       const neigh = selectedCards.filter(s => s.from === 'neighbor');
@@ -4439,21 +4705,48 @@
         return;
       }
 
-      if (mine.length !== 1 || neigh.length !== 1) {
-        showToast('必須從自己與隔壁公開組各選 1 張（選好再下手）', 'error');
-        return;
-      }
-      if (!p.cards[mine[0].index] || !n.cards[neigh[0].index]) {
-        showToast('選取的牌已不存在，請重新選擇', 'error');
-        selectedCards = [];
-        render();
-        return;
+      // 單機自己當隔壁：需選兩張不同 index（可從主牌+副牌 UI 選）
+      const soloShare = n && sameId(n.id, p.id);
+      if (soloShare) {
+        const picks = selectedCards.filter(function(s) { return s.from === 'mine' || s.from === 'neighbor'; });
+        const idxs = picks.map(function(s) { return s.index; });
+        if (idxs.length !== 2 || new Set(idxs).size !== 2) {
+          showToast('單機模式：請在公開組選兩張不同的牌（主牌區+副牌區可各點一張）', 'error');
+          return;
+        }
+        if (!p.cards[idxs[0]] || !p.cards[idxs[1]]) {
+          showToast('選取的牌已不存在，請重新選擇', 'error');
+          selectedCards = [];
+          _cardsSig = {};
+          render();
+          return;
+        }
+      } else {
+        if (mine.length !== 1 || neigh.length !== 1) {
+          showToast('必須從自己與隔壁公開組各選 1 張（選好再下手）', 'error');
+          return;
+        }
+        if (!p.cards[mine[0].index] || !n.cards[neigh[0].index]) {
+          showToast('選取的牌已不存在，請重新選擇', 'error');
+          selectedCards = [];
+          _cardsSig = {};
+          render();
+          return;
+        }
       }
 
-      const c1 = p.cards[mine[0].index];
-      const c2 = n.cards[neigh[0].index];
+      let c1, c2, i1, i2;
+      if (soloShare) {
+        const picks = selectedCards.filter(function(s) { return s.from === 'mine' || s.from === 'neighbor'; });
+        i1 = picks[0].index; i2 = picks[1].index;
+        c1 = p.cards[i1]; c2 = p.cards[i2];
+      } else {
+        i1 = mine[0].index; i2 = neigh[0].index;
+        c1 = p.cards[i1]; c2 = n.cards[i2];
+      }
       applyCard(c1);
       applyCard(c2);
+      _boardSig = '';
       // 私有牌可一併打出（算在這一次下手裡）
       const privCards = [];
       priv.forEach(s => { if (p.privateCards[s.index]) { applyCard(p.privateCards[s.index]); privCards.push(p.privateCards[s.index]); } });
@@ -4492,12 +4785,18 @@
         }
       }
 
-      mine.map(s => s.index).sort((a,b)=>b-a).forEach(i => p.cards.splice(i, 1));
-      neigh.map(s => s.index).sort((a,b)=>b-a).forEach(i => n.cards.splice(i, 1));
+      if (soloShare) {
+        [i1, i2].sort(function(a,b){ return b - a; }).forEach(function(ix) { p.cards.splice(ix, 1); });
+      } else {
+        mine.map(s => s.index).sort((a,b)=>b-a).forEach(i => p.cards.splice(i, 1));
+        neigh.map(s => s.index).sort((a,b)=>b-a).forEach(i => n.cards.splice(i, 1));
+      }
       priv.map(s => s.index).sort((a,b)=>b-a).forEach(i => p.privateCards.splice(i, 1));
 
-      hasPlayedThisPhase = true; // 本階段不能再出
+      setPlayerPlayedFluctuate(p, true); // 僅自己本階段不能再出
       selectedCards = [];
+      _cardsSig = {};
+      _boardSig = '';
       // 中央展示出牌內容（全員可見）
       const revealCards = playedAll.map(c => ({
         name: c.goodName || c.good || '',
@@ -4722,6 +5021,10 @@
       showToast(`已購買 ${g.name} ${pickValue > 0 ? '+' : ''}${pickValue}（${price}元，牌庫剩 ${totalDeckLeft()}）`, 'success');
     }
 
+    function noteJobSettleDetail(entry) {
+      if (!window._jobSettleDetails) window._jobSettleDetails = [];
+      window._jobSettleDetails.push(entry);
+    }
     function isInMyActiveBuyTurn() {
       if (phase !== 'buy') return false;
       if (typeof isMyTurn === 'function' && !isMyTurn()) return false;
@@ -4762,20 +5065,28 @@
         }
         return;
       }
-      // 買貨回合結束：直接入帳，不進喊價前動畫池
+      // 買貨：立即入帳，並記入當局結算池（喊價前畫面會顯示「含買貨階段已入帳」）
       if (phase === 'buy') {
+        const before = p.cash;
         p.cash += net;
+        if (!window._roundJobSettle || window._roundJobSettle.round !== round) {
+          window._roundJobSettle = { round: round, before: before, income: 0, fees: 0, earlyApplied: true, details: [] };
+        }
+        window._roundJobSettle.income += income;
+        window._roundJobSettle.fees += fees;
+        window._roundJobSettle.after = p.cash;
+        window._roundJobSettle.earlyApplied = true;
         if (net > 0) showToast('職業結算入帳 +' + net + '（收成 ' + income + ' − 抽成 ' + fees + '）', 'success');
         else if (net < 0) showToast('職業結算扣款 ' + net + '（收成 ' + income + ' − 抽成 ' + fees + '）', 'error');
-        else showToast('職業結算 ±0（收成 ' + income + ' − 抽成 ' + fees + '）', 'success');
         return;
       }
       // 波動等：入帳並記入喊價前那一波
       const before = p.cash;
       p.cash += net;
       if (!window._roundJobSettle || window._roundJobSettle.round !== round) {
-        window._roundJobSettle = { round: round, before: before, income: 0, fees: 0 };
+        window._roundJobSettle = { round: round, before: before, income: 0, fees: 0, details: [] };
       }
+      // 若買貨已記過 before，波動追加時 before 保持買貨前
       window._roundJobSettle.income += income;
       window._roundJobSettle.fees += fees;
       window._roundJobSettle.after = p.cash;
@@ -4878,19 +5189,34 @@
             shake('minus');
             await sleep(1000);
           }
+          // 明細：被誰抽／從誰收
+          const details = (window._jobSettleDetails || []).slice(-8);
+          const sub = document.getElementById('jobSettleSub');
+          if (sub) {
+            let lines = '職業收成／抽成（不含貨物與欠債）';
+            if (data.earlyApplied) lines += ' · 含買貨階段已入帳';
+            if (details.length) {
+              lines += '<br><span style="font-size:0.78rem;color:#c9d6e8;">' + details.map(function(d) {
+                if (d.dir === 'in') return '收成 +' + d.amount + (d.who ? ('（來自 ' + d.who + '）') : '') + (d.reason ? ' ' + d.reason : '');
+                return '抽成 −' + d.amount + (d.who ? ('（被 ' + d.who + ' 抽取）') : '') + (d.reason ? ' ' + d.reason : '');
+              }).join('<br>') + '</span>';
+            }
+            sub.innerHTML = lines;
+          }
           if (!(data.income > 0) && !(data.fees > 0)) {
             deltaEl.className = 'js-delta';
             deltaEl.style.color = '#8ab4d8';
             deltaEl.textContent = '本回合無職業收成／抽成';
-            await sleep(1800);
+            await sleep(2000);
           } else {
             deltaEl.className = 'js-delta';
             deltaEl.style.color = '#c9a227';
             deltaEl.textContent = '現金合計 ' + display;
             amtEl.className = 'js-amount';
             amtEl.textContent = String(display);
-            await sleep(2000);
+            await sleep(2200);
           }
+          window._jobSettleDetails = [];
         } catch (e) {}
         deltaEl.style.color = '';
         if (finish) finish();
@@ -5011,7 +5337,7 @@
         openRepayModal();
         return;
       }
-      if (phase === 'fluctuate' && !hasPlayedThisPhase) {
+      if (phase === 'fluctuate' && !playerHasPlayedFluctuate(p)) {
         showToast('波動階段須先出牌（自己＋隔壁公開組各 1 張）才能結束', 'error');
         return;
       }
@@ -5020,14 +5346,18 @@
         // 買貨結束：結算非波動類收成（被動職業等）
         settleJobIncomeFor(p);
         phaseDoneIds[myId] = true;
-        hasPlayedThisPhase = false;
+        setPlayerPlayedFluctuate(p, false);
         selectedCards = [];
+        _cardsSig = {};
         // 下一位；若全員完成買貨 → 進入波動，從第一位開始
         if (allPhaseDone()) {
           clearBuyPhaseTimer();
           phaseDoneIds = {};
           phase = 'fluctuate';
-          hasPlayedThisPhase = false;
+          clearAllPlayedFluctuate();
+          selectedCards = [];
+          _cardsSig = {};
+          try { dealInitialCards(); } catch (e) {}
           // 波動一律從 turnOrder[0] 開始（全端同一 turnOrder）
           const first = (turnOrder.map(Number)[0]) || Number(room.players[0] && room.players[0].id);
           currentTurnId = Number(first);
@@ -5059,8 +5389,9 @@
         // 波動結束：地主等能力收入自職業收成入帳
         settleJobIncomeFor(p);
         phaseDoneIds[myId] = true;
-        hasPlayedThisPhase = false;
+        setPlayerPlayedFluctuate(p, false);
         selectedCards = [];
+        _cardsSig = {};
         if (allPhaseDone()) {
           // 全員波動出牌結束 → 結算投資風險家（命中派彩，未命中注銷）
           // 投資風險家結算改在進入喊價前（有中獎則先播報）
@@ -5089,8 +5420,13 @@
           resetRightsFees();
           const riskWinners = (function(){ try { return settleRiskBets() || []; } catch(e) { return []; } })();
           const startBidAfterAll = function() {
+            // 單機測試模式：不進喊價，直接下一買貨
+            if (!isOnlineMode()) {
+              skipBidToNextBuy();
+              return;
+            }
             showToast('結算結束 → 買順序（喊價）', 'success');
-            if (isOnlineMode() && window.GameNet) {
+            if (window.GameNet) {
               try {
                 GameNet.sendEvent('start_bid_round', { round: round, phase: 'bid' });
                 GameNet.sendEvent('phase_advance', { phase: 'bid', round: round, currentTurnId: null, turnOrder: turnOrder.map(Number), phaseDoneIds: {} });
@@ -5656,7 +5992,7 @@ function openGangsterPanel() {
           return;
         }
       }
-      g.stock -= 1;
+      g.stock = Math.max(0, (g.stock || 0) - 1);
       p.holdings[gid] = (p.holdings[gid] || 0) + 1;
       p.gangsterGoodsTakenRound = round;
       if (g.special) p.gangsterSpecialTaken = true;
@@ -6110,6 +6446,7 @@ function openGangsterPanel() {
         return pl ? pl.name : id;
       }).join(' → ');
       showToast(`第1回合操作序：${names}`, 'success');
+      try { dealInitialCards(); } catch (e) {}
       startBuyPhaseTimer(true);
       render();
       if (typeof syncPush === 'function') syncPush();
@@ -6265,7 +6602,7 @@ function openGangsterPanel() {
       return hud;
     }
     function startBuyPhaseTimer(forceNewDeadline) {
-      // 每位玩家各自 2 分鐘；換人重計；全員都看得到當前玩家剩餘秒數
+      // 買貨各自 2 分鐘、波動出牌 30 秒；換人重計；全員都看得到當前玩家剩餘秒數
       if (buyTimerId) { clearInterval(buyTimerId); buyTimerId = null; }
       if (phase !== 'buy' && phase !== 'fluctuate') {
         clearBuyPhaseTimer();
@@ -6278,7 +6615,9 @@ function openGangsterPanel() {
       if (forceNewDeadline || !sameId(timerForPlayerId, whoId) || !turnDeadline) {
         timerForPlayerId = whoId;
         if (isMyTurn() || forceNewDeadline) {
-          turnDeadline = Date.now() + 2 * 60 * 1000;
+          // 買貨 2 分鐘；出牌（波動）30 秒
+          const ms = (phase === 'fluctuate') ? 30 * 1000 : 2 * 60 * 1000;
+          turnDeadline = Date.now() + ms;
           buyPhaseDeadline = turnDeadline;
           if (typeof syncPush === 'function') syncPush();
         }
@@ -6321,6 +6660,35 @@ function openGangsterPanel() {
       }, 250);
     }
 
+    function skipBidToNextBuy() {
+      // 單機測試：跳過喊價，沿用目前 turnOrder 直接進下一買貨
+      bidState.active = false;
+      bidState.locked = false;
+      try { clearBidTimer(); } catch (e) {}
+      const modal = document.getElementById('bidModal');
+      if (modal) modal.classList.remove('show');
+      phaseDoneIds = {};
+      if (!turnOrder || !turnOrder.length) {
+        turnOrder = (room.players || []).map(p => Number(p.id));
+      }
+      currentTurnId = Number(turnOrder[0] || myId);
+      setupDone = true;
+      phase = 'buy';
+      round = Number(round) + 1;
+      window._jobSettleDoneIds = {};
+      window._roundJobSettle = null;
+      (room.players || []).forEach(pl => {
+        pl.borrowedThisRound = 0;
+        pl.bankBorrowedThisRound = false;
+      });
+      randomizeTangaPrice();
+      try { if (round >= 2) tickMarketsOnNewRound(); } catch (e) {}
+      try { renderMarketPanel(); } catch (e) {}
+      showToast('第 ' + round + ' 回合買貨開始（單機略過喊價）｜TANGA ' + ((GOODS.find(g => g.id === 'tanga') || {}).price || ''), 'success');
+      try { startBuyPhaseTimer(true); } catch (e) {}
+      render();
+      if (typeof syncPush === 'function') try { syncPush(); } catch (e) {}
+    }
     function openBidRound() {
       resetBidState();
       bidState.active = true;
@@ -6558,6 +6926,7 @@ function openGangsterPanel() {
     function beginSetupFlow() {
       try { requestWakeLock(); } catch(e) {}
       try { initOrbFromLobby(); } catch(e) {}
+      try { dealInitialCards(); } catch(e) {}
       if (setupDone || setupStarted) return;
       setupStarted = true;
       phase = 'setup';
@@ -6595,8 +6964,20 @@ function openGangsterPanel() {
 
 
     function exportGameState() {
+      // 淺拷貝玩家欄位，避免整包 JSON 深拷貝拖慢
+      const playersLite = (room.players || []).map(function(pl) {
+        return Object.assign({}, pl, {
+          cards: Array.isArray(pl.cards) ? pl.cards.map(function(c){ return Object.assign({}, c); }) : [],
+          privateCards: Array.isArray(pl.privateCards) ? pl.privateCards.map(function(c){ return Object.assign({}, c); }) : [],
+          holdings: Object.assign({}, pl.holdings || {}),
+          jobs: Array.isArray(pl.jobs) ? pl.jobs.slice() : (pl.jobs ? [pl.jobs] : []),
+          market: pl.market ? JSON.parse(JSON.stringify(pl.market)) : pl.market,
+          riskZoneBets: pl.riskZoneBets ? JSON.parse(JSON.stringify(pl.riskZoneBets)) : pl.riskZoneBets,
+          riskCellBets: pl.riskCellBets ? JSON.parse(JSON.stringify(pl.riskCellBets)) : pl.riskCellBets
+        });
+      });
       return {
-        players: JSON.parse(JSON.stringify(room.players)),
+        players: playersLite,
         goods: GOODS.map(g => ({ id: g.id, price: g.price, stock: g.stock })),
         deckStock: Object.assign({}, deckStock),
         goodsRights: Object.assign({}, goodsRights),
@@ -6648,7 +7029,7 @@ function openGangsterPanel() {
       try {
         if (state.ts) _lastNetTs = state.ts;
         if (state.players) {
-          // 固定手牌：同步時不覆蓋本機已有的公開組／購買牌（避免變牌、購買牌消失）
+          // 手牌同步：他人公開組一律用遠端（保證副牌=對方主牌）；自己僅保護剛操作的購買牌
           const prevById = {};
           (room.players || []).forEach(pl => {
             prevById[String(pl.id)] = {
@@ -6661,21 +7042,18 @@ function openGangsterPanel() {
             const prev = prevById[String(pl.id)];
             if (!prev) return;
             const isMe = sameId(pl.id, myId);
-            // 自己的牌永遠以本機為準（剛買的購買牌、已發的公開組）
             if (isMe) {
-              if (Array.isArray(prev.cards) && prev.cards.length) pl.cards = prev.cards;
-              if (Array.isArray(prev.privateCards)) pl.privateCards = prev.privateCards;
-              return;
-            }
-            // 他人：買貨／波動階段保留原手牌，避免共享組被替換
-            if (phase === 'buy' || phase === 'fluctuate' || state.phase === 'buy' || state.phase === 'fluctuate') {
-              if (Array.isArray(prev.cards) && prev.cards.length) pl.cards = prev.cards;
-              if (Array.isArray(prev.privateCards) && prev.privateCards.length) {
-                // 若遠端購買牌更長（對方剛買），採用較長的
+              // 公開組：若遠端有資料則採用遠端（聯機權威），避免自己與他人看到的主牌不一致
+              if (!Array.isArray(pl.cards) || !pl.cards.length) {
+                if (Array.isArray(prev.cards) && prev.cards.length) pl.cards = prev.cards;
+              }
+              // 購買牌：本機剛買到的以較長為準
+              if (Array.isArray(prev.privateCards)) {
                 const remote = Array.isArray(pl.privateCards) ? pl.privateCards : [];
-                pl.privateCards = remote.length > prev.privateCards.length ? remote : prev.privateCards;
+                if (prev.privateCards.length > remote.length) pl.privateCards = prev.privateCards;
               }
             }
+            // 他人：完全使用遠端 public cards（副牌才能對上主牌）
           });
         }
         if (state.goods) {
@@ -6696,7 +7074,11 @@ function openGangsterPanel() {
         if (state.bankFunds != null) bankFunds = state.bankFunds;
         if (state.rightsSoldThisRound != null) rightsSoldThisRound = state.rightsSoldThisRound;
         if (state.mustRepayThisTurn != null) mustRepayThisTurn = state.mustRepayThisTurn;
-        if (state.hasPlayedThisPhase != null) hasPlayedThisPhase = state.hasPlayedThisPhase;
+        // 出牌完成改為每人 hasPlayedFluctuate，不從全域覆蓋（避免一人出牌全員鎖死）
+        try {
+          const meP = (state.players || []).find(function(pl) { return sameId(pl.id, myId); });
+          if (meP && meP.hasPlayedFluctuate != null) hasPlayedThisPhase = !!meP.hasPlayedFluctuate;
+        } catch (e) {}
         if (state.turnOrder) turnOrder = state.turnOrder.map(Number);
         if (state.turnDir) turnDir = state.turnDir;
         if (state.setupDone != null) setupDone = state.setupDone;
@@ -6723,6 +7105,17 @@ function openGangsterPanel() {
     function syncPush() {
       if (_applyingNet) return;
       if (localStorage.getItem('onlineMode') !== '1' || !window.GameNet) return;
+      if (_syncPushTimer) return;
+      _syncPushTimer = setTimeout(function() {
+        _syncPushTimer = 0;
+        if (_applyingNet) return;
+        try { GameNet.pushState(exportGameState()); } catch (e) { console.warn(e); }
+      }, 90);
+    }
+    function syncPushNow() {
+      if (_applyingNet) return;
+      if (localStorage.getItem('onlineMode') !== '1' || !window.GameNet) return;
+      if (_syncPushTimer) { clearTimeout(_syncPushTimer); _syncPushTimer = 0; }
       try { GameNet.pushState(exportGameState()); } catch (e) { console.warn(e); }
     }
     // 在關鍵操作後呼叫同步
@@ -6789,7 +7182,10 @@ function openGangsterPanel() {
           if (payload.phase) phase = payload.phase;
           if (payload.round != null) round = payload.round;
           if (payload.turnDeadline) turnDeadline = payload.turnDeadline;
-          if (payload.hasPlayedThisPhase != null && sameId(payload.playerId, myId)) hasPlayedThisPhase = payload.hasPlayedThisPhase;
+          if (payload.hasPlayedThisPhase != null && sameId(payload.playerId, myId)) {
+            hasPlayedThisPhase = payload.hasPlayedThisPhase;
+            const mp = me(); if (mp) mp.hasPlayedFluctuate = !!payload.hasPlayedThisPhase;
+          }
           try { startBuyPhaseTimer(false); } catch(e) {}
           render();
         }
